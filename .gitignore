@@ -59,3 +59,5 @@ input*.png
 # Optional local media and temp files
 *.tmp
 *.temp
+
+video*.mp4
