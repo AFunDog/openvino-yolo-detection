@@ -56,6 +56,12 @@ result*.png
 input*.mp4
 input*.png
 
+# Detection data records
+data/
+
+# Test input/output
+test/
+
 # Optional local media and temp files
 *.tmp
 *.temp

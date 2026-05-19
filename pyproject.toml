@@ -1,0 +1,64 @@
+[project]
+name = "openvino-yolo-detection"
+version = "0.1.0"
+description = "YOLO object detection using OpenVINO"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "OpenVINO YOLO Detection Project" }
+]
+keywords = ["openvino", "yolo", "object-detection", "deep-learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "openvino>=2024.6.0",
+    "opencv-python>=4.9.0",
+    "numpy>=1.26.0",
+    "yt-dlp>=2026.3.17",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "black",
+    "ruff",
+    "openvino-dev",
+    "onnx",
+    "onnxruntime<1.20",
+    "ultralytics",
+]
+
+[project.scripts]
+yolo-v3-tiny = "main:detect_video"
+yolo-v26 = "yolov26:run_cli"
+
+[project.urls]
+Homepage = "https://github.com/your-repo/openvino-yolo-detection"
+Repository = "https://github.com/your-repo/openvino-yolo-detection"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["main*", "yolov26*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"

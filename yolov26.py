@@ -6,7 +6,11 @@ YOLOv26 实现代码
 import openvino as ov
 import cv2
 import numpy as np
+import os
 import time
+import json
+import csv
+from datetime import datetime
 
 # ==================== 模型参数配置 ====================
 # 模型文件路径
@@ -54,7 +58,56 @@ COCO_CLASSES = [
 ]
 
 
-def xywh2xyxy(x):
+# 数据记录目录
+DATA_DIR = "data"
+
+
+def save_detection_data(source, frame_data, summary):
+    """保存检测数据到 data 目录
+
+    Args:
+        source: 视频源标识
+        frame_data: 帧级检测数据列表
+        summary: 统计汇总信息
+    """
+    os.makedirs(DATA_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_dir = os.path.join(DATA_DIR, f"detection_{timestamp}")
+    os.makedirs(session_dir, exist_ok=True)
+
+    # 保存帧级 JSON 数据
+    json_path = os.path.join(session_dir, "frames.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(frame_data, f, ensure_ascii=False, indent=2)
+
+    # 保存帧级 CSV 数据
+    csv_path = os.path.join(session_dir, "frames.csv")
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["frame", "timestamp", "class", "class_id", "confidence", "x1", "y1", "x2", "y2"])
+        for frame in frame_data:
+            for det in frame["detections"]:
+                writer.writerow([
+                    frame["frame"], frame["timestamp"],
+                    det["class"], det["class_id"], det["confidence"],
+                    det["x1"], det["y1"], det["x2"], det["y2"]
+                ])
+
+    # 保存统计汇总
+    summary_path = os.path.join(session_dir, "summary.json")
+    with open(summary_path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+
+    print(f"数据已保存到: {session_dir}/")
+    print(f"  - frames.json  (帧级详细数据)")
+    print(f"  - frames.csv   (帧级表格数据)")
+    print(f"  - summary.json (统计汇总)")
+
+
+
+
+
+def convert_boxes(x):
     """将中心点坐标 (cx, cy, w, h) 转换为 (x1, y1, x2, y2)"""
     y = np.copy(x)
     y[..., 0] = x[..., 0] - x[..., 2] / 2  # x1 = cx - w/2
@@ -266,11 +319,14 @@ def detect_video(source=0, output_path=None):
     # 视频写入器
     writer = None
     if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     frame_count = 0
     fps_list = []
+    frame_data = []
+    class_counts = {}
     last_boxes = []
     last_confidences = []
     last_class_ids = []
@@ -292,6 +348,29 @@ def detect_video(source=0, output_path=None):
         else:
             # 使用上一帧的检测结果
             boxes, confidences, class_ids = last_boxes, last_confidences, last_class_ids
+
+        # 记录检测数据
+        detections = []
+        for i, (box, conf, cls_id) in enumerate(zip(boxes, confidences, class_ids)):
+            det = {
+                "class": COCO_CLASSES[cls_id],
+                "class_id": int(cls_id),
+                "confidence": round(float(conf), 4),
+                "x1": round(float(box[0]), 2),
+                "y1": round(float(box[1]), 2),
+                "x2": round(float(box[2]), 2),
+                "y2": round(float(box[3]), 2),
+            }
+            detections.append(det)
+            class_name = COCO_CLASSES[cls_id]
+            class_counts[class_name] = class_counts.get(class_name, 0) + 1
+
+        frame_data.append({
+            "frame": frame_count,
+            "timestamp": round(time.time(), 3),
+            "detections": detections,
+            "num_objects": len(detections),
+        })
 
         # 绘制结果
         if boxes:
@@ -342,8 +421,22 @@ def detect_video(source=0, output_path=None):
     print(f"检测完成! 共处理 {frame_count} 帧")
     print(f"平均 FPS: {final_avg_fps:.1f}")
 
+    # 保存检测数据
+    summary = {
+        "source": str(source),
+        "total_frames": frame_count,
+        "avg_fps": round(final_avg_fps, 1),
+        "total_detections": sum(f["num_objects"] for f in frame_data),
+        "class_counts": class_counts,
+        "video_info": {"width": width, "height": height, "fps": fps},
+        "model": MODEL_XML_PATH,
+        "confidence_threshold": CONF_THRESHOLD,
+        "iou_threshold": IOU_THRESHOLD,
+    }
+    save_detection_data(source, frame_data, summary)
 
-def detect_image(image_path, output_path="result.png"):
+
+def detect_image(image_path, output_path="test/output/result_yolov26.png"):
     """
     图片检测函数
 
@@ -386,6 +479,7 @@ def detect_image(image_path, output_path="result.png"):
 
     # 绘制结果
     if boxes:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         result_img = draw_detections(
             img.copy(), boxes, confidences, class_ids, COCO_CLASSES
         )
@@ -397,11 +491,44 @@ def detect_image(image_path, output_path="result.png"):
         for i, (box, conf, cls_id) in enumerate(zip(boxes, confidences, class_ids)):
             print(f"  {i+1}. {COCO_CLASSES[cls_id]}: {conf:.2f}, 位置: {box}")
         print(f"结果已保存到: {output_path}")
+
+        # 保存检测数据
+        detections = []
+        class_counts = {}
+        for box, conf, cls_id in zip(boxes, confidences, class_ids):
+            detections.append({
+                "class": COCO_CLASSES[cls_id],
+                "class_id": int(cls_id),
+                "confidence": round(float(conf), 4),
+                "x1": round(float(box[0]), 2),
+                "y1": round(float(box[1]), 2),
+                "x2": round(float(box[2]), 2),
+                "y2": round(float(box[3]), 2),
+            })
+            class_name = COCO_CLASSES[cls_id]
+            class_counts[class_name] = class_counts.get(class_name, 0) + 1
+
+        frame_data = [{
+            "frame": 0,
+            "timestamp": round(time.time(), 3),
+            "detections": detections,
+            "num_objects": len(detections),
+        }]
+        summary = {
+            "source": image_path,
+            "type": "image",
+            "total_detections": len(detections),
+            "class_counts": class_counts,
+            "model": MODEL_XML_PATH,
+            "confidence_threshold": CONF_THRESHOLD,
+        }
+        save_detection_data(image_path, frame_data, summary)
     else:
         print("未检测到目标")
 
 
-if __name__ == "__main__":
+def run_cli():
+    """命令行入口函数"""
     import sys
 
     # 支持命令行参数
@@ -414,35 +541,39 @@ if __name__ == "__main__":
 
     if mode == "image":
         # 模式1: 检测图片
-        image_path = sys.argv[2] if len(sys.argv) > 2 else "input.png"
-        output_path = sys.argv[3] if len(sys.argv) > 3 else "output_yolov26.png"
+        image_path = sys.argv[2] if len(sys.argv) > 2 else "test/input/input.png"
+        output_path = sys.argv[3] if len(sys.argv) > 3 else "test/output/output_yolov26.png"
         detect_image(image_path, output_path)
 
     elif mode == "camera":
         # 模式2: 检测摄像头
         camera_id = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-        output_path = sys.argv[3] if len(sys.argv) > 3 else "output_camera_yolov26.mp4"
+        output_path = sys.argv[3] if len(sys.argv) > 3 else "test/output/output_camera_yolov26.mp4"
         detect_video(camera_id, output_path)
 
     elif mode == "video":
         # 模式3: 检测视频文件 (默认)
-        video_path = sys.argv[2] if len(sys.argv) > 2 else "input_video.mp4"
-        output_path = sys.argv[3] if len(sys.argv) > 3 else "output_yolov26.mp4"
+        video_path = sys.argv[2] if len(sys.argv) > 2 else "test/input/input_video.mp4"
+        output_path = sys.argv[3] if len(sys.argv) > 3 else "test/output/output_yolov26.mp4"
         detect_video(video_path, output_path)
 
     elif mode == "rtsp":
         # 模式4: RTSP流
         rtsp_url = sys.argv[2] if len(sys.argv) > 2 else "rtsp://your_stream_url"
-        output_path = sys.argv[3] if len(sys.argv) > 3 else "output_rtsp_yolov26.mp4"
+        output_path = sys.argv[3] if len(sys.argv) > 3 else "test/output/output_rtsp_yolov26.mp4"
         detect_video(rtsp_url, output_path)
 
     else:
         print("使用方法:")
-        print("  python yolov26.py image [图片路径] [输出路径]")
-        print("  python yolov26.py camera [摄像头ID] [输出路径]")
-        print("  python yolov26.py video [视频路径] [输出路径]")
-        print("  python yolov26.py rtsp [RTSP地址] [输出路径]")
+        print("  yolo-v26 image [图片路径] [输出路径]")
+        print("  yolo-v26 camera [摄像头ID] [输出路径]")
+        print("  yolo-v26 video [视频路径] [输出路径]")
+        print("  yolo-v26 rtsp [RTSP地址] [输出路径]")
         print("\n示例:")
-        print("  python yolov26.py image test.png result.png")
-        print("  python yolov26.py camera 0 output.mp4")
-        print("  python yolov26.py video test_video.mp4 output.mp4")
+        print("  yolo-v26 image test.png result.png")
+        print("  yolo-v26 camera 0 output.mp4")
+        print("  yolo-v26 video test_video.mp4 output.mp4")
+
+
+if __name__ == "__main__":
+    run_cli()
