@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QSlider, QComboBox, QListWidget, QListWidgetItem,
     QProgressBar, QTableWidget, QTableWidgetItem, QSplitter,
     QGroupBox, QSizePolicy, QAbstractItemView, QHeaderView,
-    QMenu, QMessageBox,
+    QMenu, QMessageBox, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
 )
 from PyQt6.QtCore import Qt, QTimer, QSize, QRectF, QPointF, pyqtSignal
 from PyQt6.QtGui import (
@@ -175,7 +175,7 @@ class CardWidget(QGroupBox):
                 background: #ffffff;
                 border: 1px solid #e2e5eb;
                 border-radius: 10px;
-                margin-top: 0px;
+                margin-top: 12px;
                 padding: 14px 12px;
                 font-weight: bold;
                 color: #374151;
@@ -183,6 +183,7 @@ class CardWidget(QGroupBox):
             QGroupBox#card::title {
                 subcontrol-origin: margin;
                 left: 12px;
+                top: 2px;
                 padding: 0 6px;
             }
         """)
@@ -589,6 +590,52 @@ class NavButton(QPushButton):
             """)
 
 
+# ─── 进度条表格委托 ──────────────────────────────────────
+
+class ProgressBarDelegate(QStyledItemDelegate):
+    """在表格单元格内绘制迷你进度条 + 百分比文字"""
+
+    def paint(self, painter, option, index):
+        # 获取百分比值
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        pct = 0.0
+        try:
+            pct = float(str(text).replace("%", "").strip())
+        except ValueError:
+            pass
+
+        # 先绘制默认背景/选中态
+        painter.save()
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor(238, 242, 255))
+        elif index.row() % 2 == 1:
+            painter.fillRect(option.rect, QColor(250, 251, 252))
+
+        # 进度条区域
+        r = option.rect.adjusted(6, 4, -6, -4)
+        bar_w = int(r.width() * pct / 100)
+
+        # 背景
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(229, 231, 235)))
+        painter.drawRoundedRect(r, 3, 3)
+
+        # 填充
+        if bar_w > 0:
+            fill_rect = QRectF(r.x(), r.y(), bar_w, r.height())
+            grad = QLinearGradient(fill_rect.topLeft(), fill_rect.topRight())
+            grad.setColorAt(0, QColor(79, 70, 229))
+            grad.setColorAt(1, QColor(109, 99, 255))
+            painter.setBrush(QBrush(grad))
+            painter.drawRoundedRect(fill_rect, 3, 3)
+
+        # 文字
+        painter.setPen(QPen(QColor(17, 24, 39)))
+        painter.setFont(QFont("Microsoft YaHei", 9))
+        painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()
+
+
 # ─── 统计数字标签 ────────────────────────────────────────
 
 class StatLabel(QWidget):
@@ -741,8 +788,7 @@ class MainWindow(QMainWindow):
             QListWidget::item { padding: 4px 8px; border-bottom: 1px solid #f3f4f6; }
             QListWidget::item:selected { background: #eef2ff; color: #4f46e5; }
         """)
-        sidebar_layout.addWidget(self.session_list)
-        sidebar_layout.addStretch()
+        sidebar_layout.addWidget(self.session_list, 1)
 
         body.addWidget(sidebar)
 
@@ -867,24 +913,38 @@ class MainWindow(QMainWindow):
         self.class_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.class_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.class_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.class_table.setMaximumHeight(200)
+        self.class_table.verticalHeader().setVisible(False)
+        self.class_table.verticalHeader().setDefaultSectionSize(32)
+        self.class_table.setAlternatingRowColors(True)
+        self.class_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.class_table.setStyleSheet("""
             QTableWidget {
-                border: 1px solid #e2e5eb; border-radius: 6px;
-                background: #f9fafb; font-size: 11px; gridline-color: #e5e7eb;
+                border: none; border-radius: 6px;
+                background: #ffffff; font-size: 12px; gridline-color: transparent;
+            }
+            QTableWidget::item {
+                padding: 4px 8px; border-bottom: 1px solid #f3f4f6;
+            }
+            QTableWidget::item:alternate {
+                background: #fafbfc;
             }
             QHeaderView::section {
-                background: #f3f4f6; border: none; padding: 4px; font-weight: bold;
+                background: #334155; color: #ffffff; border: none;
+                padding: 6px 8px; font-weight: bold; font-size: 11px;
+            }
+            QTableWidget::item:selected {
+                background: #eef2ff;
             }
         """)
+        class_layout.setContentsMargins(0, 0, 0, 0)
+        class_layout.setSpacing(0)
         class_layout.addWidget(self.class_table)
-        left_col.addWidget(card_class)
-        left_col.addStretch()
+        left_col.addWidget(card_class, 1)
 
         left_w = QWidget()
         left_w.setLayout(left_col)
-        left_w.setFixedWidth(340)
-        bottom.addWidget(left_w)
+        left_w.setMinimumWidth(320)
+        bottom.addWidget(left_w, 2)
 
         # 右列：视频预览
         right_col = QVBoxLayout()
@@ -896,7 +956,7 @@ class MainWindow(QMainWindow):
 
         right_w = QWidget()
         right_w.setLayout(right_col)
-        bottom.addWidget(right_w, 1)
+        bottom.addWidget(right_w, 3)
 
         layout.addLayout(bottom, 1)
         self.stack.addWidget(page)
@@ -1047,22 +1107,33 @@ class MainWindow(QMainWindow):
         self.timeline_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.timeline_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.timeline_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.timeline_table.setMaximumHeight(200)
+        self.timeline_table.verticalHeader().setVisible(False)
+        self.timeline_table.verticalHeader().setDefaultSectionSize(32)
+        self.timeline_table.setAlternatingRowColors(True)
         self.timeline_table.setStyleSheet("""
             QTableWidget {
-                border: 1px solid #e2e5eb; border-radius: 6px;
-                background: #f9fafb; font-size: 11px; gridline-color: #e5e7eb;
+                border: none; border-radius: 6px;
+                background: #ffffff; font-size: 12px; gridline-color: transparent;
+            }
+            QTableWidget::item {
+                padding: 4px 8px; border-bottom: 1px solid #f3f4f6;
+            }
+            QTableWidget::item:alternate {
+                background: #fafbfc;
             }
             QHeaderView::section {
-                background: #f3f4f6; border: none; padding: 4px; font-weight: bold;
+                background: #334155; color: #ffffff; border: none;
+                padding: 6px 8px; font-weight: bold; font-size: 11px;
+            }
+            QTableWidget::item:selected {
+                background: #eef2ff;
             }
         """)
-        ctrl_layout.addWidget(self.timeline_table)
-        ctrl_layout.addStretch()
+        ctrl_layout.addWidget(self.timeline_table, 1)
 
         ctrl_w = QWidget()
         ctrl_w.setLayout(ctrl_layout)
-        ctrl_w.setFixedWidth(300)
+        ctrl_w.setMinimumWidth(280)
         layout.addWidget(ctrl_w)
 
         self.stack.addWidget(page)
@@ -1336,12 +1407,33 @@ class MainWindow(QMainWindow):
         self.class_table.setRowCount(0)
         unique_total = sum(unique_counts.values())
         for cls, count in sorted(unique_counts.items(), key=lambda x: -x[1]):
-            pct = f"{(count / unique_total * 100):.1f}%" if unique_total else "0%"
+            pct_val = (count / unique_total * 100) if unique_total else 0
+            pct = f"{pct_val:.1f}%"
             row_idx = self.class_table.rowCount()
             self.class_table.insertRow(row_idx)
-            self.class_table.setItem(row_idx, 0, QTableWidgetItem(cls))
-            self.class_table.setItem(row_idx, 1, QTableWidgetItem(str(count)))
-            self.class_table.setItem(row_idx, 2, QTableWidgetItem(pct))
+
+            # 类别名
+            name_item = QTableWidgetItem(cls)
+            name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            self.class_table.setItem(row_idx, 0, name_item)
+
+            # 数量
+            count_item = QTableWidgetItem(str(count))
+            count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
+            self.class_table.setItem(row_idx, 1, count_item)
+
+            # 占比 — 文字颜色编码
+            pct_item = QTableWidgetItem(pct)
+            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            if pct_val >= 50:
+                pct_item.setForeground(QBrush(QColor(22, 163, 74)))   # 绿
+            elif pct_val >= 20:
+                pct_item.setForeground(QBrush(QColor(37, 99, 235)))   # 蓝
+            elif pct_val >= 5:
+                pct_item.setForeground(QBrush(QColor(202, 138, 4)))   # 黄
+            else:
+                pct_item.setForeground(QBrush(QColor(107, 114, 128))) # 灰
+            self.class_table.setItem(row_idx, 2, pct_item)
 
         info = (
             f"视频源: {summary.get('source', 'N/A')}\n"
