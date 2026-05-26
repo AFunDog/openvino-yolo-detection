@@ -322,39 +322,33 @@ class IntersectionCanvas(QWidget):
         self._draw_arrow(p, cx - road_w/2 - cw_len - lane_w, cy + lane_w * 0.5, "down", W)
         self._draw_arrow(p, cx + road_w/2 + cw_len + lane_w, cy - lane_w * 1.5, "down", W)
 
-        # ── 交通灯（真实位置） ──
-        # 交通灯规则：面向来车方向放置
-        # X方向车从左右驶来 → 灯放在路口对角的路沿上方
-        # Y方向车从上下驶来 → 灯放在路口对角的路沿上方
+        # ── 交通灯（四角放置） ──
+        # 灯杆在路口四角人行道上，灯臂水平伸向路口中心方向
+        # X方向灯控制水平道路车辆，Y方向灯控制垂直道路车辆
 
-        # 4个交通灯位置：
-        # 左上角：控制从左来的X方向车（面向左，灯在路沿上方）
-        # 右下角：控制从右来的X方向车（面向右，灯在路沿上方）
-        # 左下角：控制从下来的Y方向车（面向下，灯在路沿上方）
-        # 右上角：控制从上来的Y方向车（面向上，灯在路沿上方）
+        pole_h = max(28, int(H * 0.065))
+        arm_len = max(14, int(W * 0.03))
+        corner_off = max(8, int(W * 0.018))
 
-        pole_h = max(20, int(H * 0.06))
-        light_offset_from_curb = max(8, int(W * 0.025))
+        # X方向灯 - 左上角（臂向右伸，控制从左驶来的车）
+        bx1 = cx - road_w/2 - corner_off
+        by1 = cy - road_w/2 - corner_off
+        self._draw_traffic_light(p, bx1, by1, self.x_color, pole_h, arm_len, "right", W)
 
-        # X方向灯 - 左上（控制从左驶入的车）
-        lx1 = cx - road_w/2 - curb_w - light_offset_from_curb
-        ly1 = cy - road_w/2 - curb_w
-        self._draw_traffic_light(p, lx1, ly1, self.x_color, pole_h, "right", W)
+        # X方向灯 - 右下角（臂向左伸，控制从右驶来的车）
+        bx2 = cx + road_w/2 + corner_off
+        by2 = cy + road_w/2 + corner_off
+        self._draw_traffic_light(p, bx2, by2, self.x_color, pole_h, arm_len, "left", W)
 
-        # X方向灯 - 右下（控制从右驶入的车）
-        lx2 = cx + road_w/2 + curb_w + light_offset_from_curb
-        ly2 = cy + road_w/2 + curb_w
-        self._draw_traffic_light(p, lx2, ly2, self.x_color, pole_h, "left", W)
+        # Y方向灯 - 右上角（臂向左伸向垂直道路，控制从上驶来的车）
+        bx3 = cx + road_w/2 + corner_off
+        by3 = cy - road_w/2 - corner_off
+        self._draw_traffic_light(p, bx3, by3, self.y_color, pole_h, arm_len, "left", W)
 
-        # Y方向灯 - 左下（控制从下驶入的车）
-        lx3 = cx - road_w/2 - curb_w
-        ly3 = cy + road_w/2 + curb_w + light_offset_from_curb
-        self._draw_traffic_light(p, lx3, ly3, self.y_color, pole_h, "up", W)
-
-        # Y方向灯 - 右上（控制从上驶入的车）
-        lx4 = cx + road_w/2 + curb_w
-        ly4 = cy - road_w/2 - curb_w - light_offset_from_curb
-        self._draw_traffic_light(p, lx4, ly4, self.y_color, pole_h, "down", W)
+        # Y方向灯 - 左下角（臂向右伸向垂直道路，控制从下驶来的车）
+        bx4 = cx - road_w/2 - corner_off
+        by4 = cy + road_w/2 + corner_off
+        self._draw_traffic_light(p, bx4, by4, self.y_color, pole_h, arm_len, "right", W)
 
         # ── 车辆图标 ──
         if self.car_x is not None:
@@ -404,27 +398,28 @@ class IntersectionCanvas(QWidget):
             return
         p.drawPolygon(*pts)
 
-    def _draw_traffic_light(self, p, lx, ly, active_color, pole_h, facing, W):
-        """画交通灯（含灯杆）"""
-        bw = max(16, int(W * 0.038))
-        bh = max(48, int(W * 0.1))
-        r = max(4, int(W * 0.01))
+    def _draw_traffic_light(self, p, bx, by, active_color, pole_h, arm_len, facing, W):
+        """画交通灯：垂直灯杆 + 水平灯臂 + 灯箱"""
+        bw = max(14, int(W * 0.03))
+        bh = max(38, int(W * 0.075))
+        r = max(4, int(W * 0.008))
+        pole_w = max(3, int(W * 0.005))
+        arm_h = max(2, int(W * 0.003))
 
-        # 灯杆
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(C_POLE))
-        pole_w = max(3, int(W * 0.008))
-        if facing in ("right", "left"):
-            # 水平灯杆，灯在路沿外侧上方
-            p.drawRect(QRectF(lx - pole_w/2, ly, pole_w, pole_h))
-            # 灯体在杆顶部
-            light_y = ly + pole_h * 0.1
-            self._draw_light_box(p, lx, light_y, bw, bh, r, active_color)
-        else:
-            # 垂直灯杆
-            p.drawRect(QRectF(lx, ly - pole_w/2, pole_h, pole_w))
-            light_x = lx + pole_h * 0.1
-            self._draw_light_box(p, light_x, ly, bw, bh, r, active_color)
+
+        # 灯杆（从地面垂直向上延伸）
+        pole_top = by - pole_h
+        p.drawRect(QRectF(bx - pole_w/2, pole_top, pole_w, pole_h))
+
+        # 灯臂（从杆顶水平延伸向路口方向）+ 灯箱
+        if facing == "right":
+            p.drawRect(QRectF(bx, pole_top - arm_h/2, arm_len, arm_h))
+            self._draw_light_box(p, bx + arm_len, pole_top, bw, bh, r, active_color)
+        else:  # facing == "left"
+            p.drawRect(QRectF(bx - arm_len, pole_top - arm_h/2, arm_len, arm_h))
+            self._draw_light_box(p, bx - arm_len, pole_top, bw, bh, r, active_color)
 
     def _draw_light_box(self, p, lx, ly, bw, bh, r, active_color):
         """画灯体"""
