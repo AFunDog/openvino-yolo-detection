@@ -1090,17 +1090,21 @@ class MainWindow(QMainWindow):
         frames = summary.get("total_frames", 0)
         fps_val = summary.get("avg_fps", 0)
         vi = summary.get("video_info", {})
-        vehicle_count = sum(v for k, v in classes.items() if k.lower() in VEHICLE_CLASSES)
+        # 优先使用去重统计（unique_class_counts），兼容旧数据
+        unique_counts = summary.get("unique_class_counts", classes)
+        vehicle_count = summary.get("unique_vehicle_count",
+                                    sum(v for k, v in unique_counts.items() if k.lower() in VEHICLE_CLASSES))
 
         self.stat_frames.set_value(str(frames))
         self.stat_detections.set_value(str(total))
         self.stat_vehicles.set_value(str(vehicle_count))
         self.stat_fps.set_value(str(round(fps_val, 1)))
 
-        # 类别表格
+        # 类别表格 — 使用去重统计
         self.class_table.setRowCount(0)
-        for cls, count in sorted(classes.items(), key=lambda x: -x[1]):
-            pct = f"{(count / total * 100):.1f}%" if total else "0%"
+        unique_total = sum(unique_counts.values())
+        for cls, count in sorted(unique_counts.items(), key=lambda x: -x[1]):
+            pct = f"{(count / unique_total * 100):.1f}%" if unique_total else "0%"
             row_idx = self.class_table.rowCount()
             self.class_table.insertRow(row_idx)
             self.class_table.setItem(row_idx, 0, QTableWidgetItem(cls))
