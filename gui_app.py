@@ -22,8 +22,9 @@ from PyQt6.QtWidgets import (
     QFileDialog, QSlider, QComboBox, QListWidget, QListWidgetItem,
     QProgressBar, QTableWidget, QTableWidgetItem, QSplitter,
     QGroupBox, QSizePolicy, QAbstractItemView, QHeaderView,
+    QMenu, QMessageBox,
 )
-from PyQt6.QtCore import Qt, QTimer, QSize, QRectF, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QSize, QRectF, QPointF, pyqtSignal
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QBrush, QFont, QImage, QPixmap,
     QLinearGradient, QRadialGradient,
@@ -69,14 +70,18 @@ C_BORDER        = QColor(220, 225, 231)
 C_BORDER_LIGHT  = QColor(235, 238, 243)
 
 # Canvas
-C_ROAD          = QColor(209, 213, 219)
-C_GRASS         = QColor(187, 247, 208)
-C_INTERSECTION  = QColor(199, 203, 209)
-C_LANE          = QColor(156, 163, 175)
-C_CROSSWALK     = QColor(107, 114, 128, 40)
-C_SIDEWALK      = QColor(156, 163, 175, 120)
-C_STOP_LINE     = QColor(107, 114, 128, 80)
-C_CENTER_LINE   = QColor(202, 138, 4, 100)
+C_ROAD          = QColor(82, 86, 89)
+C_ROAD_MARK     = QColor(220, 220, 220)
+C_GRASS         = QColor(76, 153, 76)
+C_SIDEWALK_BG   = QColor(160, 155, 145)
+C_INTERSECTION  = QColor(88, 92, 95)
+C_LANE          = QColor(200, 200, 200, 180)
+C_CROSSWALK     = QColor(240, 240, 240, 200)
+C_SIDEWALK      = QColor(170, 165, 155)
+C_STOP_LINE     = QColor(240, 240, 240, 220)
+C_CENTER_LINE   = QColor(240, 200, 60, 200)
+C_POLE          = QColor(100, 100, 110)
+C_CURB          = QColor(140, 135, 125)
 
 
 # ─── 数据加载 ────────────────────────────────────────────
@@ -193,7 +198,7 @@ class IntersectionCanvas(QWidget):
         self.car_x = None
         self.car_y = None
         self.countdown = None
-        self.setMinimumSize(300, 300)
+        self.setMinimumSize(350, 350)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def update_state(self, x_color="off", y_color="off", car_x=None, car_y=None, countdown=None):
@@ -210,10 +215,19 @@ class IntersectionCanvas(QWidget):
 
         W = self.width()
         H = self.height()
-        road_w = int(W * 0.22)
+        # 每方向两车道 + 路肩
+        road_w = int(W * 0.24)
+        lane_w = road_w / 4  # 单车道宽
+        curb_w = max(4, int(W * 0.012))
         cx, cy = W / 2, H / 2
 
-        # 四角草地
+        # ── 草地背景 ──
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(C_GRASS))
+        p.drawRect(QRectF(0, 0, W, H))
+
+        # ── 人行道（四角） ──
+        sw = max(10, int(W * 0.032))
         corners = [
             (0, 0, cx - road_w/2, cy - road_w/2),
             (cx + road_w/2, 0, W, cy - road_w/2),
@@ -221,134 +235,282 @@ class IntersectionCanvas(QWidget):
             (cx + road_w/2, cy + road_w/2, W, H),
         ]
         for x1, y1, x2, y2 in corners:
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(C_GRASS))
-            p.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
-            sw = max(4, int(W * 0.014))
             p.setBrush(QBrush(C_SIDEWALK))
+            p.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
+            # 靠道路一侧的路沿石
+            p.setBrush(QBrush(C_CURB))
             if x1 == 0:
-                p.drawRect(QRectF(x2 - sw, y1, sw, y2 - y1))
+                p.drawRect(QRectF(x2 - curb_w, y1, curb_w, y2 - y1))
             if x2 == W:
-                p.drawRect(QRectF(x1, y1, sw, y2 - y1))
+                p.drawRect(QRectF(x1, y1, curb_w, y2 - y1))
             if y1 == 0:
-                p.drawRect(QRectF(x1, y2 - sw, x2 - x1, sw))
+                p.drawRect(QRectF(x1, y2 - curb_w, x2 - x1, curb_w))
             if y2 == H:
-                p.drawRect(QRectF(x1, y1, x2 - x1, sw))
+                p.drawRect(QRectF(x1, y1, x2 - x1, curb_w))
 
-        # 道路
+        # ── 道路 ──
         p.setBrush(QBrush(C_ROAD))
         p.setPen(Qt.PenStyle.NoPen)
+        # 水平道路
         p.drawRect(QRectF(0, cy - road_w/2, W, road_w))
+        # 垂直道路
         p.drawRect(QRectF(cx - road_w/2, 0, road_w, H))
+        # 交叉口
         p.setBrush(QBrush(C_INTERSECTION))
         p.drawRect(QRectF(cx - road_w/2, cy - road_w/2, road_w, road_w))
 
-        # 中心线（虚线）
-        pen = QPen(C_CENTER_LINE, 1, Qt.PenStyle.DashLine)
-        p.setPen(pen)
+        # ── 车道分隔线（白色虚线） ──
+        pen_lane = QPen(C_LANE, max(1, int(W * 0.004)), Qt.PenStyle.DashLine)
+        p.setPen(pen_lane)
+        hw = lane_w
+        # 水平道路车道线
+        for lo in [-hw, hw]:
+            p.drawLine(int(0), int(cy + lo), int(cx - road_w/2), int(cy + lo))
+            p.drawLine(int(cx + road_w/2), int(cy + lo), int(W), int(cy + lo))
+        # 垂直道路车道线
+        for lo in [-hw, hw]:
+            p.drawLine(int(cx + lo), int(0), int(cx + lo), int(cy - road_w/2))
+            p.drawLine(int(cx + lo), int(cy + road_w/2), int(cx + lo), int(H))
+
+        # ── 中心线（黄色双实线） ──
+        pen_center = QPen(C_CENTER_LINE, max(1, int(W * 0.005)))
+        p.setPen(pen_center)
         for offset in [-2, 2]:
             p.drawLine(int(0), int(cy + offset), int(cx - road_w/2), int(cy + offset))
             p.drawLine(int(cx + road_w/2), int(cy + offset), int(W), int(cy + offset))
             p.drawLine(int(cx + offset), int(0), int(cx + offset), int(cy - road_w/2))
             p.drawLine(int(cx + offset), int(cy + road_w/2), int(cx + offset), int(H))
 
-        # 车道虚线
-        pen = QPen(C_LANE, 1, Qt.PenStyle.DashLine)
-        p.setPen(pen)
-        hw = road_w / 4
-        for lo in [-hw, hw]:
-            p.drawLine(int(0), int(cy + lo), int(cx - road_w/2), int(cy + lo))
-            p.drawLine(int(cx + road_w/2), int(cy + lo), int(W), int(cy + lo))
-            p.drawLine(int(cx + lo), int(0), int(cx + lo), int(cy - road_w/2))
-            p.drawLine(int(cx + lo), int(cy + road_w/2), int(cx + lo), int(H))
-
-        # 人行横道
+        # ── 人行横道（斑马线） ──
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(C_CROSSWALK))
-        for i in range(8):
-            ow = road_w / 8 - 4
-            ox = cx - road_w/2 + i * (road_w/8) + 2
-            p.drawRect(QRectF(ox, cy - road_w/2 - 14, ow, 12))
-            p.drawRect(QRectF(ox, cy + road_w/2 + 2, ow, 12))
-            oh = road_w / 8 - 4
-            oy = cy - road_w/2 + i * (road_w/8) + 2
-            p.drawRect(QRectF(cx - road_w/2 - 14, oy, 12, oh))
-            p.drawRect(QRectF(cx + road_w/2 + 2, oy, 12, oh))
+        stripe_w = max(3, int(road_w * 0.06))
+        gap = max(3, int(road_w * 0.04))
+        cw_len = max(12, int(road_w * 0.3))
+        # 上方横道
+        yb = cy - road_w/2 - cw_len
+        for i in range(int(road_w / (stripe_w + gap))):
+            p.drawRect(QRectF(cx - road_w/2 + i * (stripe_w + gap), yb, stripe_w, cw_len))
+        # 下方横道
+        yb = cy + road_w/2
+        for i in range(int(road_w / (stripe_w + gap))):
+            p.drawRect(QRectF(cx - road_w/2 + i * (stripe_w + gap), yb, stripe_w, cw_len))
+        # 左侧横道
+        xb = cx - road_w/2 - cw_len
+        for i in range(int(road_w / (stripe_w + gap))):
+            p.drawRect(QRectF(xb, cy - road_w/2 + i * (stripe_w + gap), cw_len, stripe_w))
+        # 右侧横道
+        xb = cx + road_w/2
+        for i in range(int(road_w / (stripe_w + gap))):
+            p.drawRect(QRectF(xb, cy - road_w/2 + i * (stripe_w + gap), cw_len, stripe_w))
 
-        # 停车线
-        p.setPen(QPen(C_STOP_LINE, 2))
+        # ── 停车线 ──
+        p.setPen(QPen(C_STOP_LINE, max(2, int(W * 0.005))))
+        # 上方停车线（左半幅，向右行驶的车辆）
         p.drawLine(int(cx - road_w/2), int(cy - road_w/2 - 2), int(cx), int(cy - road_w/2 - 2))
+        # 下方停车线
         p.drawLine(int(cx), int(cy + road_w/2 + 2), int(cx + road_w/2), int(cy + road_w/2 + 2))
+        # 左侧停车线
         p.drawLine(int(cx - road_w/2 - 2), int(cy), int(cx - road_w/2 - 2), int(cy + road_w/2))
+        # 右侧停车线
         p.drawLine(int(cx + road_w/2 + 2), int(cy - road_w/2), int(cx + road_w/2 + 2), int(cy))
 
-        # 道路标签
-        fs = max(10, int(W * 0.022))
-        font = QFont("Microsoft YaHei", fs)
-        p.setFont(font)
-        p.setPen(QPen(C_TEXT_SECONDARY))
-        p.drawText(int(cx - 18), int(cy - road_w/2 - 36), "X")
-        p.drawText(int(cx - 18), int(cy + road_w/2 + 22 + fs), "X")
-        p.drawText(int(cx - road_w/2 - 30), int(cy - 8 + fs), "Y")
-        p.drawText(int(cx + road_w/2 + 16), int(cy - 8 + fs), "Y")
+        # ── 转向箭头 ──
+        self._draw_arrow(p, cx - lane_w * 1.5, cy - road_w/2 - cw_len - lane_w, "right", W)
+        self._draw_arrow(p, cx + lane_w * 0.5, cy + road_w/2 + cw_len + lane_w, "right", W)
+        self._draw_arrow(p, cx - road_w/2 - cw_len - lane_w, cy + lane_w * 0.5, "down", W)
+        self._draw_arrow(p, cx + road_w/2 + cw_len + lane_w, cy - lane_w * 1.5, "down", W)
 
-        # 交通灯
-        def draw_light(lx, ly, ac):
-            bw = max(20, int(W * 0.048))
-            bh = max(56, int(H * 0.14))
-            r = max(5, int(W * 0.013))
-            # 外框
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(QColor(80, 80, 90)))
-            p.drawRoundedRect(QRectF(lx - bw/2 - 2, ly - bh/2 - 2, bw + 4, bh + 4), 3, 3)
-            p.setBrush(QBrush(QColor(50, 50, 60)))
-            p.drawRoundedRect(QRectF(lx - bw/2, ly - bh/2, bw, bh), 2, 2)
-            for i, cn in enumerate(["red", "yellow", "green"]):
-                by = ly - bh/3 + i * (bh/3)
-                is_on = cn == ac
-                if cn == "red":
-                    fill = C_RED if is_on else C_RED_DIM
-                elif cn == "yellow":
-                    fill = C_YELLOW if is_on else C_YELLOW_DIM
-                else:
-                    fill = C_GREEN if is_on else C_GREEN_DIM
-                if is_on:
-                    glow = QColor(fill)
-                    glow.setAlpha(30)
-                    p.setBrush(QBrush(glow))
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.drawEllipse(QRectF(lx - r - 6, by - r - 6, (r + 6)*2, (r + 6)*2))
-                p.setBrush(QBrush(fill))
-                p.setPen(Qt.PenStyle.NoPen)
-                p.drawEllipse(QRectF(lx - r, by - r, r*2, r*2))
+        # ── 交通灯（真实位置） ──
+        # 交通灯规则：面向来车方向放置
+        # X方向车从左右驶来 → 灯放在路口对角的路沿上方
+        # Y方向车从上下驶来 → 灯放在路口对角的路沿上方
 
-        off_x = max(20, int(W * 0.04))
-        off_y = max(30, int(H * 0.08))
-        draw_light(cx - road_w/2 - off_x, cy - road_w/2 - off_y, self.y_color)
-        draw_light(cx + road_w/2 + off_x, cy + road_w/2 + off_y, self.y_color)
-        draw_light(cx - road_w/2 - off_y, cy + road_w/2 + off_x, self.x_color)
-        draw_light(cx + road_w/2 + off_y, cy - road_w/2 - off_x, self.x_color)
+        # 4个交通灯位置：
+        # 左上角：控制从左来的X方向车（面向左，灯在路沿上方）
+        # 右下角：控制从右来的X方向车（面向右，灯在路沿上方）
+        # 左下角：控制从下来的Y方向车（面向下，灯在路沿上方）
+        # 右上角：控制从上来的Y方向车（面向上，灯在路沿上方）
 
-        # 车辆数
+        pole_h = max(20, int(H * 0.06))
+        light_offset_from_curb = max(8, int(W * 0.025))
+
+        # X方向灯 - 左上（控制从左驶入的车）
+        lx1 = cx - road_w/2 - curb_w - light_offset_from_curb
+        ly1 = cy - road_w/2 - curb_w
+        self._draw_traffic_light(p, lx1, ly1, self.x_color, pole_h, "right", W)
+
+        # X方向灯 - 右下（控制从右驶入的车）
+        lx2 = cx + road_w/2 + curb_w + light_offset_from_curb
+        ly2 = cy + road_w/2 + curb_w
+        self._draw_traffic_light(p, lx2, ly2, self.x_color, pole_h, "left", W)
+
+        # Y方向灯 - 左下（控制从下驶入的车）
+        lx3 = cx - road_w/2 - curb_w
+        ly3 = cy + road_w/2 + curb_w + light_offset_from_curb
+        self._draw_traffic_light(p, lx3, ly3, self.y_color, pole_h, "up", W)
+
+        # Y方向灯 - 右上（控制从上驶入的车）
+        lx4 = cx + road_w/2 + curb_w
+        ly4 = cy - road_w/2 - curb_w - light_offset_from_curb
+        self._draw_traffic_light(p, lx4, ly4, self.y_color, pole_h, "down", W)
+
+        # ── 车辆图标 ──
         if self.car_x is not None:
-            p.setPen(QPen(C_BLUE))
-            p.setFont(QFont("Microsoft YaHei", fs))
-            p.drawText(20, int(cy - 14 + fs), f"X: {self.car_x}")
-            p.drawText(W - 80, int(cy - 14 + fs), f"X: {self.car_x}")
-        if self.car_y is not None:
-            p.setPen(QPen(C_ORANGE))
-            p.drawText(int(cx - 14), 14 + fs, f"Y: {self.car_y}")
-            p.drawText(int(cx - 14), H - 30 + fs, f"Y: {self.car_y}")
+            self._draw_vehicles(p, cx, cy, road_w, lane_w, W)
 
-        # 倒计时
+        # ── 倒计时 ──
         if self.countdown is not None:
-            cfs = max(14, int(W * 0.03))
+            cfs = max(14, int(W * 0.032))
             p.setFont(QFont("Microsoft YaHei", cfs, QFont.Weight.Bold))
-            p.setPen(QPen(C_TEXT_PRIMARY))
+            p.setPen(QPen(QColor(255, 255, 255, 200)))
             txt = str(math.ceil(self.countdown))
-            p.drawText(QRectF(cx - cfs, cy - cfs/2, cfs*2, cfs*2), Qt.AlignmentFlag.AlignCenter, txt)
+            # 画一个半透明圆底
+            p.setBrush(QBrush(QColor(0, 0, 0, 80)))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(QRectF(cx - cfs * 1.1, cy - cfs * 1.1, cfs * 2.2, cfs * 2.2))
+            p.setPen(QPen(QColor(255, 255, 255, 220)))
+            p.drawText(QRectF(cx - cfs, cy - cfs, cfs * 2, cfs * 2), Qt.AlignmentFlag.AlignCenter, txt)
 
         p.end()
+
+    def _draw_arrow(self, p, x, y, direction, W):
+        """画路面转向箭头"""
+        size = max(6, int(W * 0.02))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(QColor(220, 220, 220, 160)))
+        if direction == "right":
+            pts = [
+                QPointF(x - size, y - size/2),
+                QPointF(x + size/2, y - size/2),
+                QPointF(x + size/2, y - size),
+                QPointF(x + size, y),
+                QPointF(x + size/2, y + size),
+                QPointF(x + size/2, y + size/2),
+                QPointF(x - size, y + size/2),
+            ]
+        elif direction == "down":
+            pts = [
+                QPointF(x - size/2, y - size),
+                QPointF(x + size/2, y - size),
+                QPointF(x + size/2, y + size/2),
+                QPointF(x + size, y + size/2),
+                QPointF(x, y + size),
+                QPointF(x - size, y + size/2),
+                QPointF(x - size/2, y + size/2),
+            ]
+        else:
+            return
+        p.drawPolygon(*pts)
+
+    def _draw_traffic_light(self, p, lx, ly, active_color, pole_h, facing, W):
+        """画交通灯（含灯杆）"""
+        bw = max(16, int(W * 0.038))
+        bh = max(48, int(W * 0.1))
+        r = max(4, int(W * 0.01))
+
+        # 灯杆
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(C_POLE))
+        pole_w = max(3, int(W * 0.008))
+        if facing in ("right", "left"):
+            # 水平灯杆，灯在路沿外侧上方
+            p.drawRect(QRectF(lx - pole_w/2, ly, pole_w, pole_h))
+            # 灯体在杆顶部
+            light_y = ly + pole_h * 0.1
+            self._draw_light_box(p, lx, light_y, bw, bh, r, active_color)
+        else:
+            # 垂直灯杆
+            p.drawRect(QRectF(lx, ly - pole_w/2, pole_h, pole_w))
+            light_x = lx + pole_h * 0.1
+            self._draw_light_box(p, light_x, ly, bw, bh, r, active_color)
+
+    def _draw_light_box(self, p, lx, ly, bw, bh, r, active_color):
+        """画灯体"""
+        # 外壳阴影
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(QColor(30, 30, 35)))
+        p.drawRoundedRect(QRectF(lx - bw/2 - 1, ly - bh/2 - 1, bw + 2, bh + 2), 4, 4)
+        # 外壳
+        p.setBrush(QBrush(QColor(60, 60, 68)))
+        p.drawRoundedRect(QRectF(lx - bw/2, ly - bh/2, bw, bh), 3, 3)
+        # 内壳
+        inner_m = max(2, int(bw * 0.12))
+        p.setBrush(QBrush(QColor(40, 40, 48)))
+        p.drawRoundedRect(QRectF(lx - bw/2 + inner_m, ly - bh/2 + inner_m,
+                                   bw - inner_m * 2, bh - inner_m * 2), 2, 2)
+
+        # 三灯
+        for i, cn in enumerate(["red", "yellow", "green"]):
+            by = ly - bh/3 + i * (bh/3)
+            is_on = cn == active_color
+            if cn == "red":
+                fill = C_RED if is_on else C_RED_DIM
+            elif cn == "yellow":
+                fill = C_YELLOW if is_on else C_YELLOW_DIM
+            else:
+                fill = C_GREEN if is_on else C_GREEN_DIM
+            # 发光晕
+            if is_on:
+                glow = QColor(fill)
+                glow.setAlpha(40)
+                p.setBrush(QBrush(glow))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.drawEllipse(QRectF(lx - r - 8, by - r - 8, (r + 8)*2, (r + 8)*2))
+                # 外圈
+                glow2 = QColor(fill)
+                glow2.setAlpha(80)
+                p.setBrush(QBrush(glow2))
+                p.drawEllipse(QRectF(lx - r - 3, by - r - 3, (r + 3)*2, (r + 3)*2))
+            p.setBrush(QBrush(fill))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(QRectF(lx - r, by - r, r*2, r*2))
+
+    def _draw_vehicles(self, p, cx, cy, road_w, lane_w, W):
+        """画简单车辆图标"""
+        car_w = max(8, int(road_w * 0.15))
+        car_h = max(5, int(road_w * 0.09))
+
+        # X方向车辆（左→右，上半幅路）
+        p.setPen(Qt.PenStyle.NoPen)
+        for i in range(min(self.car_x, 5)):
+            x_off = cx - road_w/2 - car_w * 2 - i * (car_w + 4)
+            y_off = cy - lane_w * 0.5
+            p.setBrush(QBrush(C_BLUE))
+            p.drawRoundedRect(QRectF(x_off, y_off - car_h/2, car_w, car_h), 2, 2)
+            # 车窗
+            p.setBrush(QBrush(QColor(150, 200, 255, 180)))
+            p.drawRect(QRectF(x_off + car_w * 0.55, y_off - car_h/2 + 1, car_w * 0.35, car_h - 2))
+
+        # X方向车辆（右→左，下半幅路）
+        p.setPen(Qt.PenStyle.NoPen)
+        for i in range(min(self.car_x, 5)):
+            x_off = cx + road_w/2 + car_w * 0.5 + i * (car_w + 4)
+            y_off = cy + lane_w * 0.5
+            p.setBrush(QBrush(C_BLUE))
+            p.drawRoundedRect(QRectF(x_off, y_off - car_h/2, car_w, car_h), 2, 2)
+            p.setBrush(QBrush(QColor(150, 200, 255, 180)))
+            p.drawRect(QRectF(x_off + car_w * 0.1, y_off - car_h/2 + 1, car_w * 0.35, car_h - 2))
+
+        # Y方向车辆（上→下，右半幅路）
+        p.setPen(Qt.PenStyle.NoPen)
+        for i in range(min(self.car_y, 5)):
+            x_off = cx + lane_w * 0.5
+            y_off = cy - road_w/2 - car_w * 2 - i * (car_w + 4)
+            p.setBrush(QBrush(C_ORANGE))
+            p.drawRoundedRect(QRectF(x_off - car_h/2, y_off, car_h, car_w), 2, 2)
+            p.setBrush(QBrush(QColor(255, 220, 150, 180)))
+            p.drawRect(QRectF(x_off - car_h/2 + 1, y_off + car_w * 0.55, car_h - 2, car_w * 0.35))
+
+        # Y方向车辆（下→上，左半幅路）
+        p.setPen(Qt.PenStyle.NoPen)
+        for i in range(min(self.car_y, 5)):
+            x_off = cx - lane_w * 0.5
+            y_off = cy + road_w/2 + car_w * 0.5 + i * (car_w + 4)
+            p.setBrush(QBrush(C_ORANGE))
+            p.drawRoundedRect(QRectF(x_off - car_h/2, y_off, car_h, car_w), 2, 2)
+            p.setBrush(QBrush(QColor(255, 220, 150, 180)))
+            p.drawRect(QRectF(x_off - car_h/2 + 1, y_off + car_w * 0.1, car_h - 2, car_w * 0.35))
 
 
 # ─── 视频预览 Widget ─────────────────────────────────────
@@ -505,6 +667,8 @@ class MainWindow(QMainWindow):
         self.video_playing = False
         self.video_fps = 30
         self.video_last_frame_time = 0
+        self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0}
+        self._detect_dirty = False
 
         self._build_ui()
         self._connect_signals()
@@ -567,6 +731,8 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(lbl)
 
         self.session_list = QListWidget()
+        self.session_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.session_list.customContextMenuRequested.connect(self._on_session_context_menu)
         self.session_list.setStyleSheet("""
             QListWidget {
                 border: 1px solid #e2e5eb; border-radius: 6px;
@@ -956,10 +1122,20 @@ class MainWindow(QMainWindow):
         output_path = str(TEST_OUTPUT_DIR / f"output_{basename}.mp4")
 
         self.detecting = True
-        self._stop_video()
         self.detect_status.setText("检测中... (YOLOv26)")
         self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
         self.btn_detect.setEnabled(False)
+
+        # 实时帧回调 —— 只存原始 BGR 帧（轻量），GUI 线程再转 QImage
+        self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0}
+        self._detect_dirty = False  # 是否有新帧待显示
+
+        def on_detect_frame(frame_bgr, frame_idx, avg_fps, num_objects):
+            self._detect_latest["bgr"] = frame_bgr  # 只存引用，零拷贝
+            self._detect_latest["fps"] = avg_fps
+            self._detect_latest["count"] = num_objects
+            self._detect_latest["idx"] = frame_idx
+            self._detect_dirty = True
 
         def run_detect():
             orig = (cv2.imshow, cv2.waitKey, cv2.destroyAllWindows)
@@ -971,7 +1147,7 @@ class MainWindow(QMainWindow):
                 import yolov26 as yolo
                 cwd = os.getcwd()
                 os.chdir(str(PROJECT_ROOT))
-                yolo.detect_video(video_path, output_path)
+                yolo.detect_video(video_path, output_path, frame_callback=on_detect_frame)
                 os.chdir(cwd)
                 self.detect_progress = output_path
             except Exception as e:
@@ -988,6 +1164,8 @@ class MainWindow(QMainWindow):
             prog = self.detect_progress
             self.detect_progress = ""
             self.btn_detect.setEnabled(True)
+            self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0}
+            self._detect_dirty = False
             if prog.startswith("FAIL:"):
                 self.detect_status.setText(prog[5:])
                 self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
@@ -1034,6 +1212,23 @@ class MainWindow(QMainWindow):
         return True
 
     def _video_tick(self):
+        # 检测中：刷新实时检测帧（30fps）
+        if self.detecting and self._detect_dirty:
+            bgr = self._detect_latest["bgr"]
+            if bgr is not None:
+                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb.shape
+                qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
+                self.video_preview.set_frame(qimg)
+                fps_val = self._detect_latest["fps"]
+                cnt = self._detect_latest["count"]
+                idx = self._detect_latest["idx"]
+                self.detect_status.setText(f"检测中... 帧{idx}  FPS:{fps_val:.0f}  目标:{cnt}")
+                self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
+            self._detect_dirty = False
+            return
+
+        # 正常视频播放
         if not self.video_playing or not self.video_cap:
             return
         now = time.time()
@@ -1077,6 +1272,43 @@ class MainWindow(QMainWindow):
         self.data_source_combo.addItem("(默认)")
         for s in self.sessions:
             self.data_source_combo.addItem(s["name"])
+
+    def _on_session_context_menu(self, pos):
+        item = self.session_list.itemAt(pos)
+        if item is None:
+            return
+        row = self.session_list.row(item)
+        if row < 0 or row >= len(self.sessions):
+            return
+        menu = QMenu()
+        menu.setStyleSheet("""
+            QMenu { background: #fff; border: 1px solid #e2e5eb; border-radius: 6px; padding: 4px; }
+            QMenu::item { padding: 6px 20px; border-radius: 4px; font-size: 12px; }
+            QMenu::item:selected { background: #fee2e2; color: #dc2626; }
+        """)
+        delete_action = menu.addAction("🗑  删除记录")
+        action = menu.exec(self.session_list.mapToGlobal(pos))
+        if action == delete_action:
+            self._delete_session(row)
+
+    def _delete_session(self, row):
+        if row < 0 or row >= len(self.sessions):
+            return
+        s = self.sessions[row]
+        session_path = s.get("path", "")
+        name = s.get("name", "")
+        reply = QMessageBox.question(
+            self, "删除确认",
+            f"确定要删除检测记录吗？\n\n{name}\n\n此操作不可撤销。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        import shutil
+        if os.path.isdir(session_path):
+            shutil.rmtree(session_path)
+        self._load_sessions()
 
     def _on_session_select(self, row):
         if row < 0 or row >= len(self.sessions):

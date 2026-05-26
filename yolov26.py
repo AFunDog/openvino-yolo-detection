@@ -353,7 +353,7 @@ def draw_detections(img, boxes, confidences, class_ids, classes):
 
 # ─── 视频检测 ──────────────────────────────────────────
 
-def detect_video(source=0, output_path=None):
+def detect_video(source=0, output_path=None, frame_callback=None):
     """
     视频检测函数
 
@@ -363,6 +363,8 @@ def detect_video(source=0, output_path=None):
             - "video.mp4" (视频文件路径)
             - "rtsp://..." (RTSP流地址)
         output_path: 输出视频保存路径，None则不保存
+        frame_callback: 每帧回调函数，签名为 callback(frame_bgr, frame_index, avg_fps, num_objects)
+                         frame_bgr 为 BGR 格式 numpy 数组
     """
     print("正在加载 YOLOv26 模型...")
     core = ov.Core()
@@ -490,6 +492,10 @@ def detect_video(source=0, output_path=None):
         # 保存
         if writer:
             writer.write(result_frame)
+
+        # 实时回调
+        if frame_callback:
+            frame_callback(result_frame, frame_count, avg_fps, len(boxes))
 
         # 按 'q' 退出
         if cv2.waitKey(1) & 0xFF == ord('q'):
