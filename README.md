@@ -1,13 +1,13 @@
 # YOLO 智能交通灯控制系统
 
-基于 OpenVINO 的目标检测与交通灯智能联动系统。通过 YOLO 模型检测视频中的车辆，自动分析车流并生成交通灯配时方案，提供桌面 GUI 可视化与控制台模拟。
+基于 OpenVINO 的目标检测与交通灯智能联动系统。通过 YOLOv26 模型检测视频中的车辆，自动分析车流并生成交通灯配时方案，提供 PyQt6 桌面 GUI 可视化与控制台模拟。
 
 ## 功能
 
-- **目标检测**：支持图片、视频、摄像头、RTSP 流的实时检测（YOLOv26 / YOLOv3-tiny）
+- **目标检测**：支持图片、视频、摄像头、RTSP 流的实时检测（YOLOv26）
 - **数据记录**：逐帧保存检测框、类别、置信度到 JSON/CSV
 - **交通灯算法**：根据画面左右区域车流量自动计算红绿灯时长
-- **桌面 GUI**：Dear PyGui 可视化界面，含十字路口动画与数据统计
+- **桌面 GUI**：PyQt6 可视化界面，含十字路口动画、视频预览与数据统计
 - **控制台模拟**：终端按时间线回放交通灯周期
 - **树莓派控制**：GPIO 驱动实体 LED 交通灯
 
@@ -21,7 +21,6 @@ uv sync
 
 # 或使用 pip
 pip install -r requirements.txt
-pip install dearpygui
 ```
 
 ### 运行 GUI 应用
@@ -72,7 +71,7 @@ python traffic_light_raspberry.py --x 5 --y 3
 ## 项目结构
 
 ```
-├── gui_app.py                   # Dear PyGui 桌面应用
+├── gui_app.py                   # PyQt6 桌面应用
 ├── yolov26.py                   # YOLOv26 检测脚本（主入口）
 ├── main.py                      # YOLOv3-tiny 检测脚本
 ├── traffic_light_console.py      # 控制台交通灯模拟
@@ -99,18 +98,22 @@ python traffic_light_raspberry.py --x 5 --y 3
 
 ### YOLO 视频分析
 
-- 查看 `data/` 目录下所有检测会话
-- 统计信息：总帧数、检测数、车辆数、FPS
+- 输入视频路径或浏览选择文件，一键启动 YOLOv26 检测
+- 检测完成后自动播放输出视频（支持播放/暂停）
+- 左侧查看 `data/` 目录下所有检测会话
+- 统计卡片：总帧数、检测数、车辆数、FPS
 - 类别分布表：各类目标数量与占比
+- 圆角卡片式布局，窗口自适应缩放
 
-### 十字路口模拟
+### 交通灯仿真
 
-- 俯视十字路口 Canvas 动画
+- 俯视十字路口 Canvas 动画（QPainter 绘制，自动等比缩放）
 - 交通灯实时切换（红/黄/绿 + 发光效果）
 - 车辆数分区显示（X路横向 / Y路纵向）
 - 倒计时 + 进度条
 - 速度调节（1x ~ 20x）
 - 支持从检测数据生成配时时间线
+- 时间线表格显示每个周期的相位、车辆数、绿灯时长
 
 ## 交通灯算法
 
@@ -124,7 +127,7 @@ python traffic_light_raspberry.py --x 5 --y 3
 - Python 3.10+
 - OpenVINO（模型推理）
 - OpenCV（图像处理）
-- Dear PyGui（桌面 GUI）
+- PyQt6（桌面 GUI）
 - NumPy
 - RPi.GPIO（树莓派控制，可选）
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-YOLO 智能交通灯控制系统 - Dear PyGui 桌面应用
+YOLO 智能交通灯控制系统 - PyQt6 桌面应用
 """
 
 import json
@@ -13,74 +13,73 @@ import threading
 import sys
 from pathlib import Path
 
-import dearpygui.dearpygui as dpg
 import numpy as np
+import cv2
 
-# ─── HiDPI & Encoding ───────────────────────────────
-import ctypes
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
-except Exception:
-    try:
-        ctypes.windll.user32.SetProcessDPIAware()
-    except Exception:
-        pass
-try:
-    sys.stdout.reconfigure(encoding='utf-8')
-except Exception:
-    pass
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QStackedWidget, QPushButton, QLabel, QLineEdit, QTextEdit,
+    QFileDialog, QSlider, QComboBox, QListWidget, QListWidgetItem,
+    QProgressBar, QTableWidget, QTableWidgetItem, QSplitter,
+    QGroupBox, QSizePolicy, QAbstractItemView, QHeaderView,
+)
+from PyQt6.QtCore import Qt, QTimer, QSize, QRectF, pyqtSignal
+from PyQt6.QtGui import (
+    QPainter, QColor, QPen, QBrush, QFont, QImage, QPixmap,
+    QLinearGradient, QRadialGradient,
+)
 
-# ─── 路径 ───────────────────────────────────────────
+# ─── HiDPI ─────────────────────────────────────────────
+# 必须在 QApplication 创建之前设置，且只能设一次
+# 用 env var 让 Qt 自己处理，避免与终端冲突
+import os
+os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
+
+# ─── 路径 ───────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
 TEST_OUTPUT_DIR = PROJECT_ROOT / "test" / "output"
 
 VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike", "bicycle"}
 
-# ─── 基准尺寸 ───────────────────────────────────────
-BASE_W, BASE_H = 1200, 750
+# ─── 颜色 ────────────────────────────────────────────────
+C_PRIMARY       = QColor(79, 70, 229)
+C_PRIMARY_HOVER = QColor(109, 99, 255)
+C_RED           = QColor(220, 38, 38)
+C_YELLOW        = QColor(202, 138, 4)
+C_GREEN         = QColor(22, 163, 74)
+C_RED_DIM       = QColor(220, 38, 38, 60)
+C_YELLOW_DIM    = QColor(202, 138, 4, 60)
+C_GREEN_DIM     = QColor(22, 163, 74, 60)
+C_BLUE          = QColor(37, 99, 235)
+C_ORANGE        = QColor(234, 88, 12)
 
-# ─── 颜色 ────────────────────────────────────────────
-C_PRIMARY        = (79, 70, 229, 255)
-C_PRIMARY_HOVER   = (109, 99, 255, 255)
-C_PRIMARY_LIGHT   = (238, 242, 255, 255)
-C_RED             = (220, 38, 38, 255)
-C_YELLOW          = (202, 138, 4, 255)
-C_GREEN           = (22, 163, 74, 255)
-C_RED_DIM         = (220, 38, 38, 60)
-C_YELLOW_DIM      = (202, 138, 4, 60)
-C_GREEN_DIM       = (22, 163, 74, 60)
-C_BLUE            = (37, 99, 235, 255)
-C_ORANGE          = (234, 88, 12, 255)
-C_PURPLE          = (147, 51, 234, 255)
+C_BG_BASE       = QColor(240, 242, 245)
+C_BG_SURFACE    = QColor(255, 255, 255)
+C_BG_ELEVATED   = QColor(241, 243, 245)
+C_BG_OVERLAY    = QColor(233, 236, 239)
+C_CARD_BG       = QColor(255, 255, 255)
+C_CARD_BORDER   = QColor(226, 229, 235)
 
-C_BG_BASE         = (240, 242, 245, 255)
-C_BG_SURFACE      = (255, 255, 255, 255)
-C_BG_ELEVATED     = (241, 243, 245, 255)
-C_BG_OVERLAY      = (233, 236, 239, 255)
-C_CARD_BG         = (255, 255, 255, 255)
-C_CARD_BORDER     = (226, 229, 235, 255)
+C_TEXT_PRIMARY   = QColor(17, 24, 39)
+C_TEXT_SECONDARY = QColor(55, 65, 81)
+C_TEXT_MUTED     = QColor(107, 114, 128)
 
-C_TEXT_PRIMARY     = (17, 24, 39, 255)
-C_TEXT_SECONDARY   = (55, 65, 81, 255)
-C_TEXT_MUTED       = (107, 114, 128, 255)
-
-C_BORDER          = (220, 225, 231, 255)
-C_BORDER_LIGHT    = (235, 238, 243, 255)
+C_BORDER        = QColor(220, 225, 231)
+C_BORDER_LIGHT  = QColor(235, 238, 243)
 
 # Canvas
-C_ROAD = (209, 213, 219, 255)
-C_GRASS = (187, 247, 208, 255)
-C_INTERSECTION = (199, 203, 209, 255)
-C_LANE = (156, 163, 175, 255)
-C_CROSSWALK = (107, 114, 128, 40)
-C_SIDEWALK = (156, 163, 175, 120)
-C_STOP_LINE = (107, 114, 128, 80)
-C_CENTER_LINE = (202, 138, 4, 100)
-C_VEHICLE_BG = (255, 255, 255, 180)
+C_ROAD          = QColor(209, 213, 219)
+C_GRASS         = QColor(187, 247, 208)
+C_INTERSECTION  = QColor(199, 203, 209)
+C_LANE          = QColor(156, 163, 175)
+C_CROSSWALK     = QColor(107, 114, 128, 40)
+C_SIDEWALK      = QColor(156, 163, 175, 120)
+C_STOP_LINE     = QColor(107, 114, 128, 80)
+C_CENTER_LINE   = QColor(202, 138, 4, 100)
 
 
-# ─── 数据加载 ────────────────────────────────────────
+# ─── 数据加载 ────────────────────────────────────────────
 
 def load_json(path):
     if os.path.exists(path):
@@ -159,13 +158,333 @@ def build_timeline(frames, video_width=1280, fps=30.0):
     return timeline, round(total_dur, 1)
 
 
-# ─── 应用状态 ────────────────────────────────────────
+# ─── 圆角卡片 ────────────────────────────────────────────
 
-class AppState:
+class CardWidget(QGroupBox):
+    """带圆角边框的卡片容器"""
+    def __init__(self, title="", parent=None):
+        super().__init__(title, parent)
+        self.setObjectName("card")
+        self.setStyleSheet("""
+            QGroupBox#card {
+                background: #ffffff;
+                border: 1px solid #e2e5eb;
+                border-radius: 10px;
+                margin-top: 0px;
+                padding: 14px 12px;
+                font-weight: bold;
+                color: #374151;
+            }
+            QGroupBox#card::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 6px;
+            }
+        """)
+
+
+# ─── 十字路口 Canvas ─────────────────────────────────────
+
+class IntersectionCanvas(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.x_color = "off"
+        self.y_color = "off"
+        self.car_x = None
+        self.car_y = None
+        self.countdown = None
+        self.setMinimumSize(300, 300)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def update_state(self, x_color="off", y_color="off", car_x=None, car_y=None, countdown=None):
+        self.x_color = x_color
+        self.y_color = y_color
+        self.car_x = car_x
+        self.car_y = car_y
+        self.countdown = countdown
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        W = self.width()
+        H = self.height()
+        road_w = int(W * 0.22)
+        cx, cy = W / 2, H / 2
+
+        # 四角草地
+        corners = [
+            (0, 0, cx - road_w/2, cy - road_w/2),
+            (cx + road_w/2, 0, W, cy - road_w/2),
+            (0, cy + road_w/2, cx - road_w/2, H),
+            (cx + road_w/2, cy + road_w/2, W, H),
+        ]
+        for x1, y1, x2, y2 in corners:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(C_GRASS))
+            p.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
+            sw = max(4, int(W * 0.014))
+            p.setBrush(QBrush(C_SIDEWALK))
+            if x1 == 0:
+                p.drawRect(QRectF(x2 - sw, y1, sw, y2 - y1))
+            if x2 == W:
+                p.drawRect(QRectF(x1, y1, sw, y2 - y1))
+            if y1 == 0:
+                p.drawRect(QRectF(x1, y2 - sw, x2 - x1, sw))
+            if y2 == H:
+                p.drawRect(QRectF(x1, y1, x2 - x1, sw))
+
+        # 道路
+        p.setBrush(QBrush(C_ROAD))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRect(QRectF(0, cy - road_w/2, W, road_w))
+        p.drawRect(QRectF(cx - road_w/2, 0, road_w, H))
+        p.setBrush(QBrush(C_INTERSECTION))
+        p.drawRect(QRectF(cx - road_w/2, cy - road_w/2, road_w, road_w))
+
+        # 中心线（虚线）
+        pen = QPen(C_CENTER_LINE, 1, Qt.PenStyle.DashLine)
+        p.setPen(pen)
+        for offset in [-2, 2]:
+            p.drawLine(int(0), int(cy + offset), int(cx - road_w/2), int(cy + offset))
+            p.drawLine(int(cx + road_w/2), int(cy + offset), int(W), int(cy + offset))
+            p.drawLine(int(cx + offset), int(0), int(cx + offset), int(cy - road_w/2))
+            p.drawLine(int(cx + offset), int(cy + road_w/2), int(cx + offset), int(H))
+
+        # 车道虚线
+        pen = QPen(C_LANE, 1, Qt.PenStyle.DashLine)
+        p.setPen(pen)
+        hw = road_w / 4
+        for lo in [-hw, hw]:
+            p.drawLine(int(0), int(cy + lo), int(cx - road_w/2), int(cy + lo))
+            p.drawLine(int(cx + road_w/2), int(cy + lo), int(W), int(cy + lo))
+            p.drawLine(int(cx + lo), int(0), int(cx + lo), int(cy - road_w/2))
+            p.drawLine(int(cx + lo), int(cy + road_w/2), int(cx + lo), int(H))
+
+        # 人行横道
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(C_CROSSWALK))
+        for i in range(8):
+            ow = road_w / 8 - 4
+            ox = cx - road_w/2 + i * (road_w/8) + 2
+            p.drawRect(QRectF(ox, cy - road_w/2 - 14, ow, 12))
+            p.drawRect(QRectF(ox, cy + road_w/2 + 2, ow, 12))
+            oh = road_w / 8 - 4
+            oy = cy - road_w/2 + i * (road_w/8) + 2
+            p.drawRect(QRectF(cx - road_w/2 - 14, oy, 12, oh))
+            p.drawRect(QRectF(cx + road_w/2 + 2, oy, 12, oh))
+
+        # 停车线
+        p.setPen(QPen(C_STOP_LINE, 2))
+        p.drawLine(int(cx - road_w/2), int(cy - road_w/2 - 2), int(cx), int(cy - road_w/2 - 2))
+        p.drawLine(int(cx), int(cy + road_w/2 + 2), int(cx + road_w/2), int(cy + road_w/2 + 2))
+        p.drawLine(int(cx - road_w/2 - 2), int(cy), int(cx - road_w/2 - 2), int(cy + road_w/2))
+        p.drawLine(int(cx + road_w/2 + 2), int(cy - road_w/2), int(cx + road_w/2 + 2), int(cy))
+
+        # 道路标签
+        fs = max(10, int(W * 0.022))
+        font = QFont("Microsoft YaHei", fs)
+        p.setFont(font)
+        p.setPen(QPen(C_TEXT_SECONDARY))
+        p.drawText(int(cx - 18), int(cy - road_w/2 - 36), "X")
+        p.drawText(int(cx - 18), int(cy + road_w/2 + 22 + fs), "X")
+        p.drawText(int(cx - road_w/2 - 30), int(cy - 8 + fs), "Y")
+        p.drawText(int(cx + road_w/2 + 16), int(cy - 8 + fs), "Y")
+
+        # 交通灯
+        def draw_light(lx, ly, ac):
+            bw = max(20, int(W * 0.048))
+            bh = max(56, int(H * 0.14))
+            r = max(5, int(W * 0.013))
+            # 外框
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(QColor(80, 80, 90)))
+            p.drawRoundedRect(QRectF(lx - bw/2 - 2, ly - bh/2 - 2, bw + 4, bh + 4), 3, 3)
+            p.setBrush(QBrush(QColor(50, 50, 60)))
+            p.drawRoundedRect(QRectF(lx - bw/2, ly - bh/2, bw, bh), 2, 2)
+            for i, cn in enumerate(["red", "yellow", "green"]):
+                by = ly - bh/3 + i * (bh/3)
+                is_on = cn == ac
+                if cn == "red":
+                    fill = C_RED if is_on else C_RED_DIM
+                elif cn == "yellow":
+                    fill = C_YELLOW if is_on else C_YELLOW_DIM
+                else:
+                    fill = C_GREEN if is_on else C_GREEN_DIM
+                if is_on:
+                    glow = QColor(fill)
+                    glow.setAlpha(30)
+                    p.setBrush(QBrush(glow))
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawEllipse(QRectF(lx - r - 6, by - r - 6, (r + 6)*2, (r + 6)*2))
+                p.setBrush(QBrush(fill))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.drawEllipse(QRectF(lx - r, by - r, r*2, r*2))
+
+        off_x = max(20, int(W * 0.04))
+        off_y = max(30, int(H * 0.08))
+        draw_light(cx - road_w/2 - off_x, cy - road_w/2 - off_y, self.y_color)
+        draw_light(cx + road_w/2 + off_x, cy + road_w/2 + off_y, self.y_color)
+        draw_light(cx - road_w/2 - off_y, cy + road_w/2 + off_x, self.x_color)
+        draw_light(cx + road_w/2 + off_y, cy - road_w/2 - off_x, self.x_color)
+
+        # 车辆数
+        if self.car_x is not None:
+            p.setPen(QPen(C_BLUE))
+            p.setFont(QFont("Microsoft YaHei", fs))
+            p.drawText(20, int(cy - 14 + fs), f"X: {self.car_x}")
+            p.drawText(W - 80, int(cy - 14 + fs), f"X: {self.car_x}")
+        if self.car_y is not None:
+            p.setPen(QPen(C_ORANGE))
+            p.drawText(int(cx - 14), 14 + fs, f"Y: {self.car_y}")
+            p.drawText(int(cx - 14), H - 30 + fs, f"Y: {self.car_y}")
+
+        # 倒计时
+        if self.countdown is not None:
+            cfs = max(14, int(W * 0.03))
+            p.setFont(QFont("Microsoft YaHei", cfs, QFont.Weight.Bold))
+            p.setPen(QPen(C_TEXT_PRIMARY))
+            txt = str(math.ceil(self.countdown))
+            p.drawText(QRectF(cx - cfs, cy - cfs/2, cfs*2, cfs*2), Qt.AlignmentFlag.AlignCenter, txt)
+
+        p.end()
+
+
+# ─── 视频预览 Widget ─────────────────────────────────────
+
+class VideoPreviewWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_frame = None
+        self.setMinimumSize(320, 180)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def set_frame(self, qimage):
+        self.current_frame = qimage
+        self.update()
+
+    def clear(self):
+        self.current_frame = None
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        if self.current_frame:
+            scaled = self.current_frame.scaled(
+                self.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            x = (self.width() - scaled.width()) // 2
+            y = (self.height() - scaled.height()) // 2
+            p.drawImage(x, y, scaled)
+        else:
+            p.fillRect(self.rect(), QColor(20, 20, 26))
+            p.setPen(QPen(C_TEXT_MUTED))
+            p.setFont(QFont("Microsoft YaHei", 12))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "无视频")
+        p.end()
+
+
+# ─── 导航按钮 ────────────────────────────────────────────
+
+class NavButton(QPushButton):
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self._active = False
+        self.setFixedHeight(36)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._update_style()
+
+    @property
+    def active(self):
+        return self._active
+
+    @active.setter
+    def active(self, val):
+        self._active = val
+        self._update_style()
+
+    def _update_style(self):
+        if self._active:
+            self.setStyleSheet("""
+                QPushButton {
+                    background: #4f46e5; color: white; border: none;
+                    border-radius: 8px; padding: 6px 14px; text-align: left;
+                    font-size: 13px; font-weight: bold;
+                }
+                QPushButton:hover { background: #6d63ff; }
+            """)
+        else:
+            self.setStyleSheet("""
+                QPushButton {
+                    background: #f1f3f5; color: #374151; border: none;
+                    border-radius: 8px; padding: 6px 14px; text-align: left;
+                    font-size: 13px;
+                }
+                QPushButton:hover { background: #e9ecef; }
+            """)
+
+
+# ─── 统计数字标签 ────────────────────────────────────────
+
+class StatLabel(QWidget):
+    def __init__(self, value="0", label="", color=C_PRIMARY, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        self.val_label = QLabel(value)
+        self.val_label.setStyleSheet(f"color: {color.name()}; font-size: 20px; font-weight: bold;")
+        self.val_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.name_label = QLabel(label)
+        self.name_label.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.val_label)
+        layout.addWidget(self.name_label)
+
+    def set_value(self, v):
+        self.val_label.setText(str(v))
+
+
+# ─── 交通灯指示器 ────────────────────────────────────────
+
+class TrafficLightIndicator(QWidget):
+    def __init__(self, label="X 方向", color=C_BLUE, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        lbl = QLabel(label)
+        lbl.setStyleSheet(f"color: {color.name()}; font-weight: bold; font-size: 12px;")
+        layout.addWidget(lbl)
+        self.lights = {}
+        for name, dim_c in [("red", C_RED_DIM), ("yellow", C_YELLOW_DIM), ("green", C_GREEN_DIM)]:
+            dot = QLabel("●")
+            dot.setStyleSheet(f"color: {dim_c.name()}; font-size: 18px;")
+            layout.addWidget(dot)
+            self.lights[name] = (dot, dim_c)
+
+    def set_active(self, color_name):
+        on_map = {"red": C_RED, "yellow": C_YELLOW, "green": C_GREEN}
+        for name, (dot, dim_c) in self.lights.items():
+            if name == color_name:
+                dot.setStyleSheet(f"color: {on_map[name].name()}; font-size: 18px;")
+            else:
+                dot.setStyleSheet(f"color: {dim_c.name()}; font-size: 18px;")
+
+
+# ─── 主窗口 ──────────────────────────────────────────────
+
+class MainWindow(QMainWindow):
     def __init__(self):
+        super().__init__()
+        self.setWindowTitle("YOLO 智能交通灯控制系统")
+        self.resize(1200, 750)
+
+        # 状态
         self.sessions = []
         self.selected_session = None
-        self.selected_summary = {}
         self.timeline = []
         self.total_duration = 0
         self.current_cycle = -1
@@ -178,957 +497,803 @@ class AppState:
         self.yellow_elapsed = 0.0
         self.in_yellow = False
         self.last_tick = 0
-        self.active_page = "yolo"
         self.detecting = False
         self.detect_progress = ""
-        self.scale = 1.0
 
-state = AppState()
+        # 视频播放器
+        self.video_cap = None
+        self.video_playing = False
+        self.video_fps = 30
+        self.video_last_frame_time = 0
 
+        self._build_ui()
+        self._connect_signals()
 
-# ─── 视频播放器 ───────────────────────────────────────
+        # 定时器
+        self.sim_timer = QTimer()
+        self.sim_timer.timeout.connect(self._sim_tick)
+        self.sim_timer.start(33)  # ~30fps
 
-class VideoPlayer:
-    TEX_W, TEX_H = 640, 360
+        self.video_timer = QTimer()
+        self.video_timer.timeout.connect(self._video_tick)
+        self.video_timer.start(33)
 
-    def __init__(self):
-        self.cap = None
-        self.playing = False
-        self.video_path = ""
-        self.fps = 30
-        self.last_frame_time = 0
-        self.frame_count = 0
-        self.current_frame = 0
+        self.detect_timer = QTimer()
+        self.detect_timer.timeout.connect(self._check_detect_status)
+        self.detect_timer.start(100)
 
-    def load(self, path):
-        self.stop()
-        import cv2
-        self.cap = cv2.VideoCapture(path)
-        if not self.cap.isOpened():
-            return False
-        self.video_path = path
-        self.fps = max(1, self.cap.get(cv2.CAP_PROP_FPS) or 30)
-        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.current_frame = 0
-        self.playing = True
-        self.last_frame_time = time.time()
-        # Show first frame
-        self._read_and_update()
-        return True
+        self._load_sessions()
+        self.canvas.update_state()
 
-    def _read_and_update(self):
-        if not self.cap:
-            return False
-        ret, frame = self.cap.read()
-        if not ret:
-            self.playing = False
-            return False
-        self.current_frame += 1
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-        frame = cv2.resize(frame, (self.TEX_W, self.TEX_H))
-        data = (frame.astype(np.float32) / 255.0).flatten().tolist()
-        dpg.set_value("video_texture", data)
-        return True
+    # ── UI 构建 ──────────────────────────────────────────
 
-    def tick(self):
-        if not self.playing or not self.cap:
-            return
-        now = time.time()
-        interval = 1.0 / self.fps
-        if now - self.last_frame_time < interval:
-            return
-        self.last_frame_time = now
-        if not self._read_and_update():
-            dpg.set_value("detect_status", "播放结束")
-            self.playing = False
+    def _build_ui(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+        central.setStyleSheet("background: #f0f2f5;")
 
-    def toggle_pause(self):
-        if self.cap:
-            self.playing = not self.playing
-            if self.playing:
-                self.last_frame_time = time.time()
-
-    def stop(self):
-        self.playing = False
-        if self.cap:
-            self.cap.release()
-            self.cap = None
-        self.current_frame = 0
-        self.frame_count = 0
-        # Clear texture
-        data = [0.08, 0.08, 0.10, 1.0] * (self.TEX_W * self.TEX_H)
-        try:
-            dpg.set_value("video_texture", data)
-        except Exception:
-            pass
-
-    def is_loaded(self):
-        return self.cap is not None
-
-
-video_player = VideoPlayer()
-
-
-# ─── 十字路口 Canvas ────────────────────────────────
-
-def draw_intersection(x_color="off", y_color="off", car_x=None, car_y=None,
-                      countdown=None, width=None, height=None):
-    tag = "intersection_draw"
-    dpg.delete_item(tag, children_only=True)
-    parent = tag
-    W = width or 580
-    H = height or 580
-    road_w = int(W * 0.22)
-    cx, cy = W / 2, H / 2
-
-    # 四角草地
-    corners = [
-        (0, 0, cx - road_w/2, cy - road_w/2),
-        (cx + road_w/2, 0, W, cy - road_w/2),
-        (0, cy + road_w/2, cx - road_w/2, H),
-        (cx + road_w/2, cy + road_w/2, W, H),
-    ]
-    for x1, y1, x2, y2 in corners:
-        dpg.draw_rectangle((x1, y1), (x2, y2), color=C_GRASS, fill=C_GRASS, parent=parent)
-        sw = max(4, int(W * 0.014))
-        if x1 == 0:
-            dpg.draw_rectangle((x2 - sw, y1), (x2, y2), color=C_SIDEWALK, fill=C_SIDEWALK, parent=parent)
-        if x2 == W:
-            dpg.draw_rectangle((x1, y1), (x1 + sw, y2), color=C_SIDEWALK, fill=C_SIDEWALK, parent=parent)
-        if y1 == 0:
-            dpg.draw_rectangle((x1, y2 - sw), (x2, y2), color=C_SIDEWALK, fill=C_SIDEWALK, parent=parent)
-        if y2 == H:
-            dpg.draw_rectangle((x1, y1), (x2, y1 + sw), color=C_SIDEWALK, fill=C_SIDEWALK, parent=parent)
-
-    # 道路
-    dpg.draw_rectangle((0, cy - road_w/2), (W, cy + road_w/2), color=C_ROAD, fill=C_ROAD, parent=parent)
-    dpg.draw_rectangle((cx - road_w/2, 0), (cx + road_w/2, H), color=C_ROAD, fill=C_ROAD, parent=parent)
-    dpg.draw_rectangle((cx - road_w/2, cy - road_w/2), (cx + road_w/2, cy + road_w/2),
-                        color=C_INTERSECTION, fill=C_INTERSECTION, parent=parent)
-
-    # 中心线
-    for offset in [-2, 2]:
-        for x_s in range(0, int(cx - road_w/2), 30):
-            dpg.draw_line((x_s, cy + offset), (x_s + 20, cy + offset),
-                          color=C_CENTER_LINE, thickness=1, parent=parent)
-        for x_s in range(int(cx + road_w/2), W, 30):
-            dpg.draw_line((x_s, cy + offset), (x_s + 20, cy + offset),
-                          color=C_CENTER_LINE, thickness=1, parent=parent)
-        for y_s in range(0, int(cy - road_w/2), 30):
-            dpg.draw_line((cx + offset, y_s), (cx + offset, y_s + 20),
-                          color=C_CENTER_LINE, thickness=1, parent=parent)
-        for y_s in range(int(cy + road_w/2), H, 30):
-            dpg.draw_line((cx + offset, y_s), (cx + offset, y_s + 20),
-                          color=C_CENTER_LINE, thickness=1, parent=parent)
-
-    # 车道虚线
-    hw = road_w / 4
-    for lane_offset in [-hw, hw]:
-        for x_s in range(0, int(cx - road_w/2), 24):
-            dpg.draw_line((x_s, cy + lane_offset), (x_s + 14, cy + lane_offset),
-                          color=C_LANE, thickness=1, parent=parent)
-        for x_s in range(int(cx + road_w/2), W, 24):
-            dpg.draw_line((x_s, cy + lane_offset), (x_s + 14, cy + lane_offset),
-                          color=C_LANE, thickness=1, parent=parent)
-        for y_s in range(0, int(cy - road_w/2), 24):
-            dpg.draw_line((cx + lane_offset, y_s), (cx + lane_offset, y_s + 14),
-                          color=C_LANE, thickness=1, parent=parent)
-        for y_s in range(int(cy + road_w/2), H, 24):
-            dpg.draw_line((cx + lane_offset, y_s), (cx + lane_offset, y_s + 14),
-                          color=C_LANE, thickness=1, parent=parent)
-
-    # 人行横道
-    for i in range(8):
-        ox = cx - road_w/2 + i * (road_w/8) + 2; ow = road_w/8 - 4
-        dpg.draw_rectangle((ox, cy - road_w/2 - 14), (ox + ow, cy - road_w/2 - 2),
-                            color=C_CROSSWALK, fill=C_CROSSWALK, parent=parent)
-        dpg.draw_rectangle((ox, cy + road_w/2 + 2), (ox + ow, cy + road_w/2 + 14),
-                            color=C_CROSSWALK, fill=C_CROSSWALK, parent=parent)
-        oy = cy - road_w/2 + i * (road_w/8) + 2; oh = road_w/8 - 4
-        dpg.draw_rectangle((cx - road_w/2 - 14, oy), (cx - road_w/2 - 2, oy + oh),
-                            color=C_CROSSWALK, fill=C_CROSSWALK, parent=parent)
-        dpg.draw_rectangle((cx + road_w/2 + 2, oy), (cx + road_w/2 + 14, oy + oh),
-                            color=C_CROSSWALK, fill=C_CROSSWALK, parent=parent)
-
-    # 停车线
-    dpg.draw_line((cx - road_w/2, cy - road_w/2 - 2), (cx, cy - road_w/2 - 2),
-                  color=C_STOP_LINE, thickness=2, parent=parent)
-    dpg.draw_line((cx, cy + road_w/2 + 2), (cx + road_w/2, cy + road_w/2 + 2),
-                  color=C_STOP_LINE, thickness=2, parent=parent)
-    dpg.draw_line((cx - road_w/2 - 2, cy), (cx - road_w/2 - 2, cy + road_w/2),
-                  color=C_STOP_LINE, thickness=2, parent=parent)
-    dpg.draw_line((cx + road_w/2 + 2, cy - road_w/2), (cx + road_w/2 + 2, cy),
-                  color=C_STOP_LINE, thickness=2, parent=parent)
-
-    # 道路标签
-    fs = max(10, int(W * 0.022))
-    dpg.draw_text((cx - 18, cy - road_w/2 - 36), "X", color=C_TEXT_SECONDARY, size=fs, parent=parent)
-    dpg.draw_text((cx - 18, cy + road_w/2 + 22), "X", color=C_TEXT_SECONDARY, size=fs, parent=parent)
-    dpg.draw_text((cx - road_w/2 - 30, cy - 8), "Y", color=C_TEXT_SECONDARY, size=fs, parent=parent)
-    dpg.draw_text((cx + road_w/2 + 16, cy - 8), "Y", color=C_TEXT_SECONDARY, size=fs, parent=parent)
-
-    # 交通灯
-    def draw_light(lx, ly, ac):
-        bw = max(20, int(W * 0.048)); bh = max(56, int(H * 0.14))
-        r = max(5, int(W * 0.013))
-        dpg.draw_rectangle((lx - bw/2 - 2, ly - bh/2 - 2), (lx + bw/2 + 2, ly + bh/2 + 2),
-                            color=(180, 180, 190, 255), fill=(80, 80, 90, 255), parent=parent)
-        dpg.draw_rectangle((lx - bw/2, ly - bh/2), (lx + bw/2, ly + bh/2),
-                            color=(100, 100, 110, 255), fill=(50, 50, 60, 255), parent=parent)
-        for i, cn in enumerate(["red", "yellow", "green"]):
-            by = ly - bh/3 + i * (bh/3)
-            is_on = cn == ac
-            if cn == "red":    fill = C_RED if is_on else C_RED_DIM
-            elif cn == "yellow": fill = C_YELLOW if is_on else C_YELLOW_DIM
-            else:              fill = C_GREEN if is_on else C_GREEN_DIM
-            if is_on:
-                glow = fill[:3] + (30,)
-                dpg.draw_circle((lx, by), r + 6, color=glow, fill=glow, parent=parent)
-            dpg.draw_circle((lx, by), r, color=fill, fill=fill, parent=parent)
-
-    off_x = max(20, int(W * 0.04))
-    off_y = max(30, int(H * 0.08))
-    draw_light(cx - road_w/2 - off_x, cy - road_w/2 - off_y, y_color)
-    draw_light(cx + road_w/2 + off_x, cy + road_w/2 + off_y, y_color)
-    draw_light(cx - road_w/2 - off_y, cy + road_w/2 + off_x, x_color)
-    draw_light(cx + road_w/2 + off_y, cy - road_w/2 - off_x, x_color)
-
-    # 车辆数
-    if car_x is not None:
-        dpg.draw_text((20, cy - 14), f"X: {car_x}", color=C_BLUE, size=fs, parent=parent)
-        dpg.draw_text((W - 80, cy - 14), f"X: {car_x}", color=C_BLUE, size=fs, parent=parent)
-    if car_y is not None:
-        dpg.draw_text((cx - 14, 14), f"Y: {car_y}", color=C_ORANGE, size=fs, parent=parent)
-        dpg.draw_text((cx - 14, H - 30), f"Y: {car_y}", color=C_ORANGE, size=fs, parent=parent)
-
-    # 倒计时
-    if countdown is not None:
-        cfs = max(14, int(W * 0.03))
-        dpg.draw_text((cx - cfs/2, cy - cfs/2), str(math.ceil(countdown)),
-                      color=C_TEXT_PRIMARY, size=cfs, parent=parent)
-
-
-# ─── YOLO 检测 ────────────────────────────────────────
-
-def on_select_video(sender, app_data):
-    if not app_data or not app_data.get("file_path_name"):
-        return
-    dpg.set_value("video_path_input", app_data["file_path_name"])
-
-
-def on_browse_video():
-    dpg.show_item("file_dialog_video")
-
-
-def on_start_detect():
-    video_path = dpg.get_value("video_path_input").strip()
-    if not video_path or not os.path.exists(video_path):
-        dpg.set_value("detect_status", "错误: 视频路径不存在")
-        return
-    if state.detecting:
-        return
-
-    model_path = PROJECT_ROOT / "public" / "yolo-v26" / "ir_model" / "yolo26n.xml"
-    if not model_path.exists():
-        dpg.set_value("detect_status", "错误: YOLOv26 模型文件不存在")
-        return
-
-    os.makedirs(str(TEST_OUTPUT_DIR), exist_ok=True)
-    basename = Path(video_path).stem
-    output_path = str(TEST_OUTPUT_DIR / f"output_{basename}.mp4")
-
-    state.detecting = True
-    video_player.stop()
-    dpg.set_value("detect_status", "检测中... (YOLOv26)")
-    dpg.configure_item("btn_start_detect", enabled=False)
-
-    def run_detect():
-        import cv2
-        orig = (cv2.imshow, cv2.waitKey, cv2.destroyAllWindows)
-        try:
-            cv2.imshow = lambda *_a, **_k: None
-            cv2.waitKey = lambda *_a, **_k: -1
-            cv2.destroyAllWindows = lambda: None
-
-            import yolov26 as yolo
-            cwd = os.getcwd()
-            os.chdir(str(PROJECT_ROOT))
-            yolo.detect_video(video_path, output_path)
-            os.chdir(cwd)
-            state.detect_progress = output_path
-        except Exception as e:
-            import traceback
-            state.detect_progress = f"FAIL:{str(e)[:200]}\n{traceback.format_exc()[:300]}"
-        finally:
-            cv2.imshow, cv2.waitKey, cv2.destroyAllWindows = orig
-            state.detecting = False
-
-    threading.Thread(target=run_detect, daemon=True).start()
-
-
-def check_detect_status():
-    if not state.detecting and state.detect_progress:
-        prog = state.detect_progress
-        state.detect_progress = ""
-        dpg.configure_item("btn_start_detect", enabled=True)
-        if prog.startswith("FAIL:"):
-            dpg.set_value("detect_status", prog[5:])
-        else:
-            dpg.set_value("detect_status", "检测完成，正在加载视频...")
-            if video_player.load(prog):
-                dpg.set_value("detect_status", f"播放: {Path(prog).name}")
-            else:
-                dpg.set_value("detect_status", "检测完成，但视频无法播放")
-        load_sessions()
-
-
-def on_play_video():
-    if video_player.is_loaded():
-        video_player.toggle_pause()
-        label = "⏸ 暂停" if video_player.playing else "▶ 播放"
-        dpg.configure_item("btn_play_video", label=label)
-
-
-# ─── YOLO 页面逻辑 ───────────────────────────────────
-
-def load_sessions():
-    state.sessions = []
-    if not DATA_DIR.exists():
-        return
-    for d in sorted(DATA_DIR.iterdir(), reverse=True):
-        if d.is_dir() and d.name.startswith("detection_"):
-            summary = load_json(d / "summary.json")
-            state.sessions.append({"name": d.name, "path": str(d), "summary": summary})
-    dpg.configure_item("session_list", items=[s["name"] for s in state.sessions])
-    items = ["(默认周期)"] + [s["name"] for s in state.sessions]
-    dpg.configure_item("data_source_combo", items=items)
-
-
-def on_session_select(sender, app_data):
-    idx = app_data
-    if idx < 0 or idx >= len(state.sessions):
-        return
-    s = state.sessions[idx]
-    state.selected_session = s
-    summary = s.get("summary", {})
-    state.selected_summary = summary
-
-    classes = summary.get("class_counts", {})
-    total = summary.get("total_detections", 0)
-    frames = summary.get("total_frames", 0)
-    fps_val = summary.get("avg_fps", 0)
-    vi = summary.get("video_info", {})
-    vehicle_count = sum(v for k, v in classes.items() if k.lower() in VEHICLE_CLASSES)
-
-    dpg.set_value("stat_frames", str(frames))
-    dpg.set_value("stat_detections", str(total))
-    dpg.set_value("stat_vehicles", str(vehicle_count))
-    dpg.set_value("stat_fps", str(round(fps_val, 1)))
-
-    # 类别表格
-    dpg.delete_item("class_table_container", children_only=True)
-    with dpg.table(header_row=True, policy=dpg.mvTable_SizingStretchProp,
-                   borders_innerH=True, borders_outerH=True,
-                   borders_innerV=True, borders_outerV=True,
-                   width=-1, parent="class_table_container"):
-        dpg.add_table_column(label="类别", width_stretch=True)
-        dpg.add_table_column(label="数量", width_stretch=True)
-        dpg.add_table_column(label="占比", width_stretch=True)
-        for cls, count in sorted(classes.items(), key=lambda x: -x[1]):
-            pct = f"{(count / total * 100):.1f}%" if total else "0%"
-            with dpg.table_row():
-                dpg.add_text(cls, color=C_TEXT_PRIMARY)
-                dpg.add_text(str(count), color=C_PRIMARY)
-                dpg.add_text(pct, color=C_TEXT_SECONDARY)
-
-    info = (
-        f"视频源: {summary.get('source', 'N/A')}\n"
-        f"分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}\n"
-        f"总帧数: {frames}  总检测: {total}\n"
-        f"车辆数: {vehicle_count}  FPS: {fps_val:.1f}"
-    )
-    dpg.set_value("session_detail", info)
-
-
-# ─── 十字路口模拟 ────────────────────────────────────
-
-def _default_timeline():
-    state.timeline = []
-    for i in range(20):
-        is_x = i % 2 == 0
-        state.timeline.append({
-            "phase": "X_GREEN" if is_x else "Y_GREEN",
-            "start_time": i * 13,
-            "car_x_avg": round(3 + (i % 3) * 1.5, 1),
-            "car_y_avg": round(2 + (i % 4) * 1.2, 1),
-            "x_green": 10, "x_red": 13, "y_green": 10, "y_red": 13,
-            "yellow_duration": 3,
-        })
-    state.total_duration = 260
-
-
-def on_load_timeline():
-    sel = dpg.get_value("data_source_combo")
-    if sel and sel != "(默认周期)":
-        session_dir = os.path.join(DATA_DIR, sel)
-        frames = load_frames(session_dir)
-        if frames:
-            summary = load_json(os.path.join(session_dir, "summary.json"))
-            vi = summary.get("video_info", {})
-            vw = vi.get("width", 1280)
-            fps_val = vi.get("fps", 30)
-            state.timeline, state.total_duration = build_timeline(frames, vw, fps_val)
-        else:
-            _default_timeline()
-    else:
-        _default_timeline()
-
-    dpg.delete_item("timeline_table_container", children_only=True)
-    with dpg.table(header_row=True, policy=dpg.mvTable_SizingFixedFit,
-                   borders_innerH=True, borders_outerH=True,
-                   borders_innerV=True, borders_outerV=True,
-                   width=-1, height=200, parent="timeline_table_container"):
-        dpg.add_table_column(label="相位", width_fixed=True, init_width_or_weight=50)
-        dpg.add_table_column(label="时间", width_fixed=True, init_width_or_weight=55)
-        dpg.add_table_column(label="车辆", width_stretch=True)
-        dpg.add_table_column(label="绿灯", width_fixed=True, init_width_or_weight=50)
-        for t in state.timeline:
-            phase_text = "X绿" if t["phase"] == "X_GREEN" else "Y绿"
-            phase_color = C_BLUE if t["phase"] == "X_GREEN" else C_ORANGE
-            with dpg.table_row():
-                dpg.add_text(phase_text, color=phase_color)
-                dpg.add_text(f"{t['start_time']}s", color=C_TEXT_SECONDARY)
-                dpg.add_text(f"X:{t['car_x_avg']} Y:{t['car_y_avg']}", color=C_TEXT_SECONDARY)
-                dpg.add_text(f"{t['x_green'] if t['phase']=='X_GREEN' else t['y_green']}s", color=C_GREEN)
-
-    state.current_cycle = -1
-    state.cycle_elapsed = 0
-    state.in_yellow = False
-
-
-def on_start_sim():
-    if state.sim_running and not state.sim_paused:
-        return
-    if not state.sim_running:
-        on_load_timeline()
-        state.sim_running = True
-        state.sim_paused = False
-        state.current_cycle = 0
-        state.cycle_elapsed = 0
-        state.in_yellow = False
-        state.yellow_elapsed = 0
-        state.last_tick = time.time()
-    else:
-        state.sim_paused = False
-        state.last_tick = time.time()
-
-
-def on_pause_sim():
-    state.sim_paused = True
-
-
-def on_reset_sim():
-    state.sim_running = False
-    state.sim_paused = False
-    state.current_cycle = -1
-    state.x_light = "off"
-    state.y_light = "off"
-    draw_intersection()
-    dpg.set_value("timer_text", "--")
-    dpg.set_value("progress_bar", 0)
-    dpg.set_value("cycle_info_text", "点击 ▶ 开始模拟")
-
-
-def update_light_indicators(x_color, y_color):
-    on_map = {"red": C_RED, "yellow": C_YELLOW, "green": C_GREEN, "off": C_BORDER}
-    dim_map = {"red": C_RED_DIM, "yellow": C_YELLOW_DIM, "green": C_GREEN_DIM, "off": C_BORDER}
-    for c_name in ["red", "yellow", "green"]:
-        dpg.configure_item(f"xl_{c_name}", color=on_map[c_name] if x_color == c_name else dim_map[c_name])
-        dpg.configure_item(f"yl_{c_name}", color=on_map[c_name] if y_color == c_name else dim_map[c_name])
-
-
-def sim_tick():
-    if not state.sim_running or state.sim_paused:
-        return
-    now = time.time()
-    dt = (now - state.last_tick) * state.sim_speed
-    state.last_tick = now
-
-    tl = state.timeline
-    if not tl or state.current_cycle >= len(tl):
-        on_reset_sim()
-        dpg.set_value("cycle_info_text", "模拟结束")
-        return
-
-    cycle = tl[state.current_cycle]
-    is_x = cycle["phase"] == "X_GREEN"
-    green_dur = cycle["x_green"] if is_x else cycle["y_green"]
-    yellow_dur = cycle.get("yellow_duration", 3)
-
-    if not state.in_yellow:
-        state.cycle_elapsed += dt
-        remaining = max(0, green_dur - state.cycle_elapsed)
-        dpg.set_value("timer_text", f"{math.ceil(remaining)}s")
-        dpg.set_value("progress_bar", state.cycle_elapsed / green_dur if green_dur > 0 else 0)
-
-        if is_x:
-            state.x_light = "green"; state.y_light = "red"
-            draw_intersection("green", "red", round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
-        else:
-            state.x_light = "red"; state.y_light = "green"
-            draw_intersection("red", "green", round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
-
-        update_light_indicators(state.x_light, state.y_light)
-        phase_label = "X路绿灯 / Y路红灯" if is_x else "Y路绿灯 / X路红灯"
-        dpg.configure_item("phase_label", color=C_BLUE if is_x else C_ORANGE)
-        dpg.set_value("phase_label", phase_label)
-        dpg.set_value("cycle_info_text",
-            f"周期 {state.current_cycle+1}/{len(tl)}\n"
-            f"X路: {cycle['car_x_avg']}辆(均) | Y路: {cycle['car_y_avg']}辆(均)\n"
-            f"绿灯: {green_dur}s | 红灯: {cycle['x_red'] if is_x else cycle['y_red']}s")
-
-        if state.cycle_elapsed >= green_dur:
-            state.in_yellow = True; state.yellow_elapsed = 0
-    else:
-        state.yellow_elapsed += dt
-        remaining = max(0, yellow_dur - state.yellow_elapsed)
-        dpg.set_value("timer_text", f"黄灯 {math.ceil(remaining)}s")
-        dpg.set_value("progress_bar", state.yellow_elapsed / yellow_dur if yellow_dur > 0 else 0)
-
-        flash = int(state.yellow_elapsed * 3) % 2 == 0
-        xc = "yellow" if flash else "off"
-        yc = "yellow" if flash else "off"
-        state.x_light = xc; state.y_light = yc
-        draw_intersection(xc, yc, round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
-        update_light_indicators(xc, yc)
-
-        dpg.configure_item("phase_label", color=C_YELLOW)
-        dpg.set_value("phase_label", "黄灯过渡")
-        dpg.set_value("cycle_info_text",
-            f"周期 {state.current_cycle+1} -> {state.current_cycle+2}\n"
-            f"双向黄灯 {yellow_dur}s")
-
-        if state.yellow_elapsed >= yellow_dur:
-            state.current_cycle += 1; state.cycle_elapsed = 0; state.in_yellow = False
-
-
-def on_speed_change(sender, app_data):
-    state.sim_speed = app_data
-
-
-# ─── 导航 ─────────────────────────────────────────────
-
-_nav_active_theme = None
-_nav_inactive_theme = None
-
-def _init_nav_themes():
-    global _nav_active_theme, _nav_inactive_theme
-    _nav_active_theme = dpg.generate_uuid()
-    _nav_inactive_theme = dpg.generate_uuid()
-    with dpg.theme(tag=_nav_active_theme):
-        with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, C_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, C_PRIMARY_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
-            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
-    with dpg.theme(tag=_nav_inactive_theme):
-        with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, C_BG_ELEVATED)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, C_BG_OVERLAY)
-            dpg.add_theme_color(dpg.mvThemeCol_Text, C_TEXT_SECONDARY)
-            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
-
-
-def switch_page(page):
-    state.active_page = page
-    dpg.configure_item("page_yolo", show=page == "yolo")
-    dpg.configure_item("page_traffic", show=page == "traffic")
-    dpg.bind_item_theme("nav_yolo", _nav_active_theme if page == "yolo" else _nav_inactive_theme)
-    dpg.bind_item_theme("nav_traffic", _nav_active_theme if page == "traffic" else _nav_inactive_theme)
-
-
-# ─── 卡片主题 ─────────────────────────────────────────
-
-_card_theme = None
-
-def _init_card_theme():
-    global _card_theme
-    _card_theme = dpg.generate_uuid()
-    with dpg.theme(tag=_card_theme):
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, C_CARD_BG)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, C_CARD_BORDER)
-            dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 10)
-            dpg.add_theme_style(dpg.mvStyleVar_ChildBorderSize, 1)
-            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 14, 12)
-            dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 6, 5)
-
-
-# ─── UI 构建 ─────────────────────────────────────────
-
-def build_ui():
-    # 全局主题
-    with dpg.theme() as global_theme:
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_WindowBg, C_BG_BASE)
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, C_BG_SURFACE)
-            dpg.add_theme_color(dpg.mvThemeCol_PopupBg, C_BG_SURFACE)
-            dpg.add_theme_color(dpg.mvThemeCol_Border, C_BORDER)
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, C_BG_SURFACE)
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, C_BG_OVERLAY)
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBg, C_BG_SURFACE)
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, C_BG_SURFACE)
-            dpg.add_theme_color(dpg.mvThemeCol_MenuBarBg, C_BG_SURFACE)
-            dpg.add_theme_color(dpg.mvThemeCol_Tab, C_BG_ELEVATED)
-            dpg.add_theme_color(dpg.mvThemeCol_TabActive, C_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_TabHovered, C_PRIMARY_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_Button, C_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, C_PRIMARY_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (67, 56, 202, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_Text, C_TEXT_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_TextDisabled, C_TEXT_MUTED)
-            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg, C_BG_BASE)
-            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrab, C_BORDER)
-            dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabHovered, C_BORDER_LIGHT)
-            dpg.add_theme_color(dpg.mvThemeCol_Separator, C_BORDER)
-            dpg.add_theme_color(dpg.mvThemeCol_TableRowBg, C_BG_SURFACE)
-            dpg.add_theme_color(dpg.mvThemeCol_TableRowBgAlt, C_BG_BASE)
-            dpg.add_theme_color(dpg.mvThemeCol_TableBorderStrong, C_BORDER)
-            dpg.add_theme_color(dpg.mvThemeCol_TableBorderLight, C_BORDER_LIGHT)
-            dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, C_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, C_PRIMARY_HOVER)
-            dpg.add_theme_color(dpg.mvThemeCol_CheckMark, C_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_Header, C_PRIMARY_LIGHT)
-            dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, C_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, C_PRIMARY)
-            dpg.add_theme_color(dpg.mvThemeCol_PopupBg, C_BG_SURFACE)
-
-            dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 8)
-            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
-            dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 10)
-            dpg.add_theme_style(dpg.mvStyleVar_PopupRounding, 8)
-            dpg.add_theme_style(dpg.mvStyleVar_ScrollbarRounding, 6)
-            dpg.add_theme_style(dpg.mvStyleVar_GrabRounding, 4)
-            dpg.add_theme_style(dpg.mvStyleVar_TabRounding, 6)
-            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 12, 10)
-            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 6, 4)
-            dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 8, 6)
-            dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, 0)
-            dpg.add_theme_style(dpg.mvStyleVar_ChildBorderSize, 1)
-            dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 0)
-
-    dpg.bind_theme(global_theme)
-
-    # 视频纹理
-    texture_data = [0.08, 0.08, 0.10, 1.0] * (VideoPlayer.TEX_W * VideoPlayer.TEX_H)
-    dpg.add_dynamic_texture(VideoPlayer.TEX_W, VideoPlayer.TEX_H, texture_data, tag="video_texture")
-
-    # 按钮主题
-    btn_start_theme = dpg.generate_uuid()
-    with dpg.theme(tag=btn_start_theme):
-        with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, C_GREEN)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (16, 185, 129, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
-    btn_pause_theme = dpg.generate_uuid()
-    with dpg.theme(tag=btn_pause_theme):
-        with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, C_YELLOW)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (245, 158, 11, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
-    btn_reset_theme = dpg.generate_uuid()
-    with dpg.theme(tag=btn_reset_theme):
-        with dpg.theme_component(dpg.mvButton):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, C_RED)
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (248, 113, 113, 255))
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
-
-    # 文件对话框
-    with dpg.file_dialog(directory_selector=False, show=False, tag="file_dialog_video",
-                          callback=on_select_video, width=600, height=400):
-        dpg.add_file_extension(".mp4")
-        dpg.add_file_extension(".avi")
-        dpg.add_file_extension(".*")
-
-    _init_nav_themes()
-    _init_card_theme()
-
-    # ─── 主窗口（无标题栏） ───
-    with dpg.window(tag="primary_window", no_move=True, no_collapse=True,
-                    no_title_bar=True, no_bring_to_front_on_focus=True):
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         # 主体：侧栏 + 内容
-        with dpg.group(horizontal=True, horizontal_spacing=0):
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
 
-            # ── 左侧导航栏 ──
-            with dpg.child_window(width=200, border=False, tag="sidebar"):
-                dpg.add_spacer(height=12)
-                with dpg.group(width=-1):
-                    dpg.add_button(label="  YOLO Video Analysis", tag="nav_yolo",
-                                   callback=lambda: switch_page("yolo"), width=-1)
-                    dpg.add_spacer(height=4)
-                    dpg.add_button(label="  Traffic Simulation", tag="nav_traffic",
-                                   callback=lambda: switch_page("traffic"), width=-1)
+        # ── 左侧导航栏 ──
+        sidebar = QWidget()
+        sidebar.setFixedWidth(200)
+        sidebar.setStyleSheet("background: #ffffff; border-right: 1px solid #e2e5eb;")
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(8, 12, 8, 8)
+        sidebar_layout.setSpacing(8)
 
-                dpg.add_spacer(height=16)
-                dpg.add_separator()
-                dpg.add_spacer(height=16)
+        self.nav_yolo = NavButton("  YOLO 视频分析")
+        self.nav_yolo.active = True
+        self.nav_traffic = NavButton("  交通灯仿真")
+        sidebar_layout.addWidget(self.nav_yolo)
+        sidebar_layout.addWidget(self.nav_traffic)
 
-                dpg.add_text("Sessions", color=C_TEXT_SECONDARY)
-                dpg.add_spacer(height=4)
-                dpg.add_listbox(tag="session_list", items=[], num_items=8,
-                                callback=on_session_select, width=-1)
+        sidebar_layout.addSpacing(8)
+        line = QWidget()
+        line.setFixedHeight(1)
+        line.setStyleSheet("background: #e2e5eb;")
+        sidebar_layout.addWidget(line)
+        sidebar_layout.addSpacing(8)
 
-            dpg.bind_item_theme("nav_yolo", _nav_active_theme)
-            dpg.bind_item_theme("nav_traffic", _nav_inactive_theme)
+        lbl = QLabel("检测记录")
+        lbl.setStyleSheet(f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px; font-weight: bold;")
+        sidebar_layout.addWidget(lbl)
 
-            dpg.add_spacer(width=4)
+        self.session_list = QListWidget()
+        self.session_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #e2e5eb; border-radius: 6px;
+                background: #f9fafb; font-size: 11px; outline: none;
+            }
+            QListWidget::item { padding: 4px 8px; border-bottom: 1px solid #f3f4f6; }
+            QListWidget::item:selected { background: #eef2ff; color: #4f46e5; }
+        """)
+        sidebar_layout.addWidget(self.session_list)
+        sidebar_layout.addStretch()
 
-            # ── 右侧内容区 ──
-            with dpg.child_window(tag="page_yolo", border=False, show=True, width=-1):
-                dpg.add_spacer(height=8)
+        body.addWidget(sidebar)
 
-                # 上传区卡片
-                with dpg.child_window(tag="card_upload", border=True, width=-1):
-                    dpg.bind_item_theme("card_upload", _card_theme)
-                    dpg.add_text("YOLOv26 Video Detection", color=C_PRIMARY)
-                    dpg.add_spacer(height=6)
-                    with dpg.group(horizontal=True):
-                        dpg.add_input_text(tag="video_path_input", default_value="", width=-1,
-                                           hint="Video path...")
-                        dpg.add_button(label="Browse", callback=on_browse_video, width=70)
-                        dpg.add_button(label="Detect", tag="btn_start_detect",
-                                       callback=on_start_detect, width=80)
-                    dpg.add_spacer(height=4)
-                    with dpg.group(horizontal=True):
-                        dpg.add_text("Ready", tag="detect_status", color=C_TEXT_SECONDARY)
-                        dpg.add_spacer(width=-1)
-                        dpg.add_button(label="Play", tag="btn_play_video",
-                                       callback=on_play_video, width=70, height=28)
+        # ── 右侧内容区 ──
+        self.stack = QStackedWidget()
+        self.stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-                dpg.add_spacer(height=8)
+        self._build_yolo_page()
+        self._build_traffic_page()
 
-                # 下方两栏
-                with dpg.group(horizontal=True):
+        body.addWidget(self.stack, 1)
+        main_layout.addLayout(body, 1)
 
-                    # 左列：统计 + 详情
-                    with dpg.group(width=320):
-                        # 统计卡片
-                        with dpg.child_window(tag="card_stats", border=True, width=-1):
-                            dpg.bind_item_theme("card_stats", _card_theme)
-                            with dpg.group(horizontal=True):
-                                with dpg.group():
-                                    dpg.add_text("0", tag="stat_frames", color=C_BLUE)
-                                    dpg.add_text("Frames", color=C_TEXT_MUTED)
-                                dpg.add_spacer(width=16)
-                                with dpg.group():
-                                    dpg.add_text("0", tag="stat_detections", color=C_PRIMARY)
-                                    dpg.add_text("Detections", color=C_TEXT_MUTED)
-                                dpg.add_spacer(width=16)
-                                with dpg.group():
-                                    dpg.add_text("0", tag="stat_vehicles", color=C_GREEN)
-                                    dpg.add_text("Vehicles", color=C_TEXT_MUTED)
-                                dpg.add_spacer(width=16)
-                                with dpg.group():
-                                    dpg.add_text("0", tag="stat_fps", color=C_ORANGE)
-                                    dpg.add_text("FPS", color=C_TEXT_MUTED)
+        # ── 底部状态栏 ──
+        status_bar = QWidget()
+        status_bar.setFixedHeight(28)
+        status_bar.setStyleSheet("background: #ffffff; border-top: 1px solid #e2e5eb;")
+        status_layout = QHBoxLayout(status_bar)
+        status_layout.setContentsMargins(12, 0, 12, 0)
+        self.status_label = QLabel("就绪")
+        self.status_label.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
+        status_layout.addWidget(self.status_label)
+        status_layout.addStretch()
+        brand = QLabel("OpenVINO + YOLOv26")
+        brand.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
+        status_layout.addWidget(brand)
+        main_layout.addWidget(status_bar)
 
-                        dpg.add_spacer(height=8)
+    def _build_yolo_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(12, 12, 12, 8)
+        layout.setSpacing(8)
 
-                        # 详情卡片
-                        with dpg.child_window(tag="card_detail", border=True, width=-1):
-                            dpg.bind_item_theme("card_detail", _card_theme)
-                            dpg.add_text("Session Detail", color=C_TEXT_SECONDARY)
-                            dpg.add_spacer(height=4)
-                            dpg.add_input_text(tag="session_detail",
-                                               default_value="Select a session from the sidebar",
-                                               multiline=True, height=70, width=-1, readonly=True)
+        # 上传区卡片
+        card_upload = CardWidget("YOLOv26 视频检测")
+        upload_layout = QVBoxLayout(card_upload)
+        upload_layout.setSpacing(6)
+        row = QHBoxLayout()
+        self.video_path_input = QLineEdit()
+        self.video_path_input.setPlaceholderText("输入视频路径...")
+        self.video_path_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #d1d5db; border-radius: 6px;
+                padding: 6px 10px; background: #f9fafb; font-size: 12px;
+            }
+            QLineEdit:focus { border-color: #4f46e5; background: #fff; }
+        """)
+        row.addWidget(self.video_path_input, 1)
 
-                        dpg.add_spacer(height=8)
+        btn_browse = QPushButton("浏览")
+        btn_browse.setFixedSize(70, 32)
+        btn_browse.setStyleSheet(self._btn_style(C_PRIMARY))
+        btn_browse.clicked.connect(self._on_browse_video)
+        row.addWidget(btn_browse)
 
-                        # 类别统计卡片
-                        with dpg.child_window(tag="card_class", border=True, width=-1):
-                            dpg.bind_item_theme("card_class", _card_theme)
-                            dpg.add_text("Class Statistics", color=C_TEXT_SECONDARY)
-                            dpg.add_spacer(height=4)
-                            dpg.add_group(tag="class_table_container")
+        self.btn_detect = QPushButton("开始检测")
+        self.btn_detect.setFixedSize(90, 32)
+        self.btn_detect.setStyleSheet(self._btn_style(C_GREEN))
+        self.btn_detect.clicked.connect(self._on_start_detect)
+        row.addWidget(self.btn_detect)
+        upload_layout.addLayout(row)
 
-                    dpg.add_spacer(width=8)
+        row2 = QHBoxLayout()
+        self.detect_status = QLabel("就绪")
+        self.detect_status.setStyleSheet(f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px;")
+        row2.addWidget(self.detect_status)
+        row2.addStretch()
+        self.btn_play = QPushButton("播放")
+        self.btn_play.setFixedSize(70, 28)
+        self.btn_play.setStyleSheet(self._btn_style(C_PRIMARY, 10))
+        self.btn_play.clicked.connect(self._on_play_video)
+        row2.addWidget(self.btn_play)
+        upload_layout.addLayout(row2)
+        layout.addWidget(card_upload)
 
-                    # 右列：视频预览
-                    with dpg.group(width=-1):
-                        with dpg.child_window(tag="card_video", border=True, width=-1):
-                            dpg.bind_item_theme("card_video", _card_theme)
-                            dpg.add_text("Video Preview", color=C_TEXT_SECONDARY)
-                            dpg.add_spacer(height=4)
-                            with dpg.drawlist(width=VideoPlayer.TEX_W, height=VideoPlayer.TEX_H,
-                                              tag="video_drawlist"):
-                                dpg.draw_image("video_texture", (0, 0),
-                                               (VideoPlayer.TEX_W, VideoPlayer.TEX_H),
-                                               tag="video_draw_img")
+        # 下方两栏
+        bottom = QHBoxLayout()
+        bottom.setSpacing(8)
 
-            # ── 交通灯页 ──
-            with dpg.child_window(tag="page_traffic", border=False, show=False, width=-1):
-                dpg.add_spacer(height=8)
-                with dpg.group(horizontal=True):
-                    # 画布
-                    with dpg.group(width=-1):
-                        with dpg.child_window(tag="card_intersection", border=True, width=-1):
-                            dpg.bind_item_theme("card_intersection", _card_theme)
-                            dpg.add_text("Intersection Status", color=C_TEXT_SECONDARY)
-                            dpg.add_spacer(height=4)
-                            with dpg.drawlist(width=580, height=580, tag="intersection_draw"):
-                                pass
+        # 左列
+        left_col = QVBoxLayout()
+        left_col.setSpacing(8)
 
-                    dpg.add_spacer(width=8)
+        # 统计
+        card_stats = CardWidget()
+        stats_layout = QHBoxLayout(card_stats)
+        stats_layout.setSpacing(16)
+        self.stat_frames = StatLabel("0", "帧数", C_BLUE)
+        self.stat_detections = StatLabel("0", "检测数", C_PRIMARY)
+        self.stat_vehicles = StatLabel("0", "车辆数", C_GREEN)
+        self.stat_fps = StatLabel("0", "FPS", C_ORANGE)
+        stats_layout.addWidget(self.stat_frames)
+        stats_layout.addWidget(self.stat_detections)
+        stats_layout.addWidget(self.stat_vehicles)
+        stats_layout.addWidget(self.stat_fps)
+        left_col.addWidget(card_stats)
 
-                    # 控制面板
-                    with dpg.group(width=300):
-                        with dpg.child_window(tag="card_control", border=True, width=-1):
-                            dpg.bind_item_theme("card_control", _card_theme)
-                            dpg.add_text("Traffic Light Status", color=C_TEXT_SECONDARY)
-                            dpg.add_spacer(height=4)
+        # 详情
+        card_detail = CardWidget("检测详情")
+        detail_layout = QVBoxLayout(card_detail)
+        self.session_detail = QTextEdit()
+        self.session_detail.setReadOnly(True)
+        self.session_detail.setFixedHeight(70)
+        self.session_detail.setPlaceholderText("从左侧选择一条检测记录")
+        self.session_detail.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #e2e5eb; border-radius: 6px;
+                background: #f9fafb; font-size: 11px; padding: 4px;
+            }
+        """)
+        detail_layout.addWidget(self.session_detail)
+        left_col.addWidget(card_detail)
 
-                            with dpg.group(horizontal=True):
-                                with dpg.group():
-                                    dpg.add_text("X Road", color=C_BLUE)
-                                    with dpg.group(horizontal=True):
-                                        dpg.add_text("●", tag="xl_red", color=C_RED_DIM)
-                                        dpg.add_text("●", tag="xl_yellow", color=C_YELLOW_DIM)
-                                        dpg.add_text("●", tag="xl_green", color=C_GREEN_DIM)
-                                dpg.add_spacer(width=20)
-                                with dpg.group():
-                                    dpg.add_text("Y Road", color=C_ORANGE)
-                                    with dpg.group(horizontal=True):
-                                        dpg.add_text("●", tag="yl_red", color=C_RED_DIM)
-                                        dpg.add_text("●", tag="yl_yellow", color=C_YELLOW_DIM)
-                                        dpg.add_text("●", tag="yl_green", color=C_GREEN_DIM)
+        # 类别统计
+        card_class = CardWidget("类别统计")
+        class_layout = QVBoxLayout(card_class)
+        self.class_table = QTableWidget(0, 3)
+        self.class_table.setHorizontalHeaderLabels(["类别", "数量", "占比"])
+        self.class_table.horizontalHeader().setStretchLastSection(True)
+        self.class_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.class_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.class_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.class_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.class_table.setMaximumHeight(200)
+        self.class_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #e2e5eb; border-radius: 6px;
+                background: #f9fafb; font-size: 11px; gridline-color: #e5e7eb;
+            }
+            QHeaderView::section {
+                background: #f3f4f6; border: none; padding: 4px; font-weight: bold;
+            }
+        """)
+        class_layout.addWidget(self.class_table)
+        left_col.addWidget(card_class)
+        left_col.addStretch()
 
-                            dpg.add_spacer(height=8)
+        left_w = QWidget()
+        left_w.setLayout(left_col)
+        left_w.setFixedWidth(340)
+        bottom.addWidget(left_w)
 
-                            dpg.add_text("Phase:", color=C_TEXT_MUTED)
-                            dpg.add_text("--", tag="phase_label", color=C_TEXT_PRIMARY)
+        # 右列：视频预览
+        right_col = QVBoxLayout()
+        card_video = CardWidget("视频预览")
+        video_layout = QVBoxLayout(card_video)
+        self.video_preview = VideoPreviewWidget()
+        video_layout.addWidget(self.video_preview)
+        right_col.addWidget(card_video, 1)
 
-                            with dpg.group(horizontal=True):
-                                dpg.add_text("Countdown", color=C_TEXT_MUTED)
-                                dpg.add_text("--", tag="timer_text", color=C_GREEN)
+        right_w = QWidget()
+        right_w.setLayout(right_col)
+        bottom.addWidget(right_w, 1)
 
-                            dpg.add_progress_bar(tag="progress_bar", default_value=0, width=-1, height=6, overlay="")
+        layout.addLayout(bottom, 1)
+        self.stack.addWidget(page)
 
-                            dpg.add_spacer(height=12)
+    def _build_traffic_page(self):
+        page = QWidget()
+        layout = QHBoxLayout(page)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
-                            with dpg.group(horizontal=True):
-                                btn_s = dpg.add_button(label="▶ Start", callback=on_start_sim, width=90, height=32)
-                                btn_p = dpg.add_button(label="⏸ Pause", callback=on_pause_sim, width=90, height=32)
-                                btn_r = dpg.add_button(label="■ Reset", callback=on_reset_sim, width=90, height=32)
-                            dpg.bind_item_theme(btn_s, btn_start_theme)
-                            dpg.bind_item_theme(btn_p, btn_pause_theme)
-                            dpg.bind_item_theme(btn_r, btn_reset_theme)
+        # 画布
+        card_canvas = CardWidget("路口状态")
+        canvas_layout = QVBoxLayout(card_canvas)
+        self.canvas = IntersectionCanvas()
+        canvas_layout.addWidget(self.canvas, 1)
+        layout.addWidget(card_canvas, 1)
 
-                            dpg.add_spacer(height=12)
+        # 控制面板
+        card_ctrl = CardWidget("交通灯状态")
+        ctrl_layout = QVBoxLayout(card_ctrl)
+        ctrl_layout.setSpacing(8)
 
-                            dpg.add_text("Speed", color=C_TEXT_MUTED)
-                            dpg.add_slider_float(tag="speed_slider", default_value=5.0,
-                                                 min_value=1.0, max_value=20.0,
-                                                 callback=on_speed_change, width=-1,
-                                                 format="%.0fx", height=20)
+        # 交通灯指示
+        self.xl_indicator = TrafficLightIndicator("X 方向", C_BLUE)
+        self.yl_indicator = TrafficLightIndicator("Y 方向", C_ORANGE)
+        ctrl_layout.addWidget(self.xl_indicator)
+        ctrl_layout.addWidget(self.yl_indicator)
 
-                            dpg.add_spacer(height=12)
-                            dpg.add_text("Data Source", color=C_TEXT_MUTED)
-                            dpg.add_combo(tag="data_source_combo", items=["(Default)"],
-                                          default_value="(Default)", width=-1)
+        # 阶段
+        phase_row = QHBoxLayout()
+        phase_lbl = QLabel("阶段:")
+        phase_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        phase_row.addWidget(phase_lbl)
+        self.phase_label = QLabel("--")
+        self.phase_label.setStyleSheet(f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
+        phase_row.addWidget(self.phase_label)
+        phase_row.addStretch()
+        ctrl_layout.addLayout(phase_row)
 
-                            dpg.add_spacer(height=8)
-                            dpg.add_separator()
-                            dpg.add_spacer(height=8)
+        # 倒计时
+        timer_row = QHBoxLayout()
+        timer_lbl = QLabel("倒计时")
+        timer_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        timer_row.addWidget(timer_lbl)
+        self.timer_text = QLabel("--")
+        self.timer_text.setStyleSheet(f"color: {C_GREEN.name()}; font-size: 14px; font-weight: bold;")
+        timer_row.addWidget(self.timer_text)
+        timer_row.addStretch()
+        ctrl_layout.addLayout(timer_row)
 
-                            dpg.add_text("Cycle Info", color=C_TEXT_MUTED)
-                            dpg.add_input_text(tag="cycle_info_text",
-                                               default_value="Click ▶ Start",
-                                               multiline=True, height=60, width=-1, readonly=True)
+        # 进度条
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar { background: #e5e7eb; border: none; border-radius: 3px; }
+            QProgressBar::chunk { background: #22c55e; border-radius: 3px; }
+        """)
+        ctrl_layout.addWidget(self.progress_bar)
 
-                            dpg.add_spacer(height=8)
-                            dpg.add_text("Timeline", color=C_TEXT_MUTED)
-                            dpg.add_group(tag="timeline_table_container")
+        # 按钮
+        btn_row = QHBoxLayout()
+        self.btn_start_sim = QPushButton("▶ 开始")
+        self.btn_start_sim.setFixedSize(90, 32)
+        self.btn_start_sim.setStyleSheet(self._btn_style(C_GREEN))
+        self.btn_start_sim.clicked.connect(self._on_start_sim)
+        btn_row.addWidget(self.btn_start_sim)
 
-        # 底部状态栏
-        dpg.add_separator()
-        with dpg.group(horizontal=True):
-            dpg.add_text("Ready", color=C_TEXT_MUTED, tag="status_text")
-            dpg.add_spacer(width=-1)
-            dpg.add_text("OpenVINO + YOLOv26", color=C_TEXT_MUTED)
+        self.btn_pause_sim = QPushButton("⏸ 暂停")
+        self.btn_pause_sim.setFixedSize(90, 32)
+        self.btn_pause_sim.setStyleSheet(self._btn_style(C_YELLOW))
+        self.btn_pause_sim.clicked.connect(self._on_pause_sim)
+        btn_row.addWidget(self.btn_pause_sim)
+
+        self.btn_reset_sim = QPushButton("■ 重置")
+        self.btn_reset_sim.setFixedSize(90, 32)
+        self.btn_reset_sim.setStyleSheet(self._btn_style(C_RED))
+        self.btn_reset_sim.clicked.connect(self._on_reset_sim)
+        btn_row.addWidget(self.btn_reset_sim)
+        ctrl_layout.addLayout(btn_row)
+
+        # 速度
+        speed_lbl = QLabel("速度")
+        speed_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        ctrl_layout.addWidget(speed_lbl)
+        speed_row = QHBoxLayout()
+        self.speed_slider = QSlider(Qt.Orientation.Horizontal)
+        self.speed_slider.setRange(1, 20)
+        self.speed_slider.setValue(5)
+        self.speed_slider.setStyleSheet("""
+            QSlider::groove:horizontal { background: #e5e7eb; height: 6px; border-radius: 3px; }
+            QSlider::handle:horizontal { background: #4f46e5; width: 14px; margin: -5px 0; border-radius: 7px; }
+        """)
+        self.speed_slider.valueChanged.connect(lambda v: setattr(self, 'sim_speed', float(v)))
+        speed_row.addWidget(self.speed_slider)
+        self.speed_val = QLabel("5x")
+        self.speed_val.setStyleSheet(f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
+        self.speed_slider.valueChanged.connect(lambda v: self.speed_val.setText(f"{v}x"))
+        speed_row.addWidget(self.speed_val)
+        ctrl_layout.addLayout(speed_row)
+
+        # 数据源
+        ds_lbl = QLabel("数据源")
+        ds_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        ctrl_layout.addWidget(ds_lbl)
+        self.data_source_combo = QComboBox()
+        self.data_source_combo.addItem("(默认)")
+        self.data_source_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #d1d5db; border-radius: 6px;
+                padding: 4px 8px; background: #f9fafb; font-size: 11px;
+            }
+        """)
+        ctrl_layout.addWidget(self.data_source_combo)
+
+        ctrl_layout.addSpacing(4)
+        line = QWidget()
+        line.setFixedHeight(1)
+        line.setStyleSheet("background: #e2e5eb;")
+        ctrl_layout.addWidget(line)
+        ctrl_layout.addSpacing(4)
+
+        # 周期信息
+        ci_lbl = QLabel("周期信息")
+        ci_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        ctrl_layout.addWidget(ci_lbl)
+        self.cycle_info = QTextEdit()
+        self.cycle_info.setReadOnly(True)
+        self.cycle_info.setFixedHeight(60)
+        self.cycle_info.setPlaceholderText("点击 ▶ 开始")
+        self.cycle_info.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #e2e5eb; border-radius: 6px;
+                background: #f9fafb; font-size: 11px; padding: 4px;
+            }
+        """)
+        ctrl_layout.addWidget(self.cycle_info)
+
+        # 时间线
+        tl_lbl = QLabel("时间线")
+        tl_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        ctrl_layout.addWidget(tl_lbl)
+        self.timeline_table = QTableWidget(0, 4)
+        self.timeline_table.setHorizontalHeaderLabels(["相位", "时间", "车辆", "绿灯"])
+        self.timeline_table.horizontalHeader().setStretchLastSection(True)
+        self.timeline_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.timeline_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.timeline_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.timeline_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.timeline_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.timeline_table.setMaximumHeight(200)
+        self.timeline_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #e2e5eb; border-radius: 6px;
+                background: #f9fafb; font-size: 11px; gridline-color: #e5e7eb;
+            }
+            QHeaderView::section {
+                background: #f3f4f6; border: none; padding: 4px; font-weight: bold;
+            }
+        """)
+        ctrl_layout.addWidget(self.timeline_table)
+        ctrl_layout.addStretch()
+
+        ctrl_w = QWidget()
+        ctrl_w.setLayout(ctrl_layout)
+        ctrl_w.setFixedWidth(300)
+        layout.addWidget(ctrl_w)
+
+        self.stack.addWidget(page)
+
+    # ── 样式工具 ─────────────────────────────────────────
+
+    @staticmethod
+    def _btn_style(bg_color, radius=6):
+        return f"""
+            QPushButton {{
+                background: {bg_color.name()}; color: white; border: none;
+                border-radius: {radius}px; font-size: 12px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background: {bg_color.lighter(115).name()}; }}
+            QPushButton:disabled {{ background: #9ca3af; }}
+        """
+
+    # ── 信号连接 ─────────────────────────────────────────
+
+    def _connect_signals(self):
+        self.nav_yolo.clicked.connect(lambda: self._switch_page(0))
+        self.nav_traffic.clicked.connect(lambda: self._switch_page(1))
+        self.session_list.currentRowChanged.connect(self._on_session_select)
+
+    def _switch_page(self, idx):
+        self.stack.setCurrentIndex(idx)
+        self.nav_yolo.active = (idx == 0)
+        self.nav_traffic.active = (idx == 1)
+
+    # ── YOLO 检测 ────────────────────────────────────────
+
+    def _on_browse_video(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择视频文件", "",
+            "视频文件 (*.mp4 *.avi);;所有文件 (*.*)"
+        )
+        if path:
+            self.video_path_input.setText(path)
+
+    def _on_start_detect(self):
+        video_path = self.video_path_input.text().strip()
+        if not video_path or not os.path.exists(video_path):
+            self.detect_status.setText("错误: 视频路径不存在")
+            self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
+            return
+        if self.detecting:
+            return
+
+        model_path = PROJECT_ROOT / "public" / "yolo-v26" / "ir_model" / "yolo26n.xml"
+        if not model_path.exists():
+            self.detect_status.setText("错误: YOLOv26 模型文件不存在")
+            self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
+            return
+
+        os.makedirs(str(TEST_OUTPUT_DIR), exist_ok=True)
+        basename = Path(video_path).stem
+        output_path = str(TEST_OUTPUT_DIR / f"output_{basename}.mp4")
+
+        self.detecting = True
+        self._stop_video()
+        self.detect_status.setText("检测中... (YOLOv26)")
+        self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
+        self.btn_detect.setEnabled(False)
+
+        def run_detect():
+            orig = (cv2.imshow, cv2.waitKey, cv2.destroyAllWindows)
+            try:
+                cv2.imshow = lambda *_a, **_k: None
+                cv2.waitKey = lambda *_a, **_k: -1
+                cv2.destroyAllWindows = lambda: None
+
+                import yolov26 as yolo
+                cwd = os.getcwd()
+                os.chdir(str(PROJECT_ROOT))
+                yolo.detect_video(video_path, output_path)
+                os.chdir(cwd)
+                self.detect_progress = output_path
+            except Exception as e:
+                import traceback
+                self.detect_progress = f"FAIL:{str(e)[:200]}\n{traceback.format_exc()[:300]}"
+            finally:
+                cv2.imshow, cv2.waitKey, cv2.destroyAllWindows = orig
+                self.detecting = False
+
+        threading.Thread(target=run_detect, daemon=True).start()
+
+    def _check_detect_status(self):
+        if not self.detecting and self.detect_progress:
+            prog = self.detect_progress
+            self.detect_progress = ""
+            self.btn_detect.setEnabled(True)
+            if prog.startswith("FAIL:"):
+                self.detect_status.setText(prog[5:])
+                self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
+            else:
+                self.detect_status.setText("检测完成，正在加载视频...")
+                self.detect_status.setStyleSheet(f"color: {C_GREEN.name()}; font-size: 12px;")
+                if self._load_video(prog):
+                    self.btn_play.setText("⏸ 暂停")
+                    self.detect_status.setText(f"播放: {Path(prog).name}")
+                    self.detect_status.setStyleSheet(f"color: {C_GREEN.name()}; font-size: 12px;")
+                else:
+                    self.detect_status.setText("检测完成，但视频无法播放")
+                    self.detect_status.setStyleSheet(f"color: {C_ORANGE.name()}; font-size: 12px;")
+            self._load_sessions()
+
+    # ── 视频播放 ─────────────────────────────────────────
+
+    def _load_video(self, path):
+        self._stop_video()
+        self.video_cap = cv2.VideoCapture(path)
+        if not self.video_cap.isOpened():
+            self.video_cap = None
+            return False
+        self.video_fps = max(1, self.video_cap.get(cv2.CAP_PROP_FPS) or 30)
+        self.video_playing = True
+        self.video_last_frame_time = time.time()
+        self._read_video_frame()
+        return True
+
+    def _read_video_frame(self):
+        if not self.video_cap:
+            return False
+        ret, frame = self.video_cap.read()
+        if not ret:
+            self.video_playing = False
+            self.detect_status.setText("播放结束")
+            self.detect_status.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+            self.btn_play.setText("▶ 播放")
+            return False
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = frame.shape
+        qimg = QImage(frame.data, w, h, ch * w, QImage.Format.Format_RGB888)
+        self.video_preview.set_frame(qimg)
+        return True
+
+    def _video_tick(self):
+        if not self.video_playing or not self.video_cap:
+            return
+        now = time.time()
+        interval = 1.0 / self.video_fps
+        if now - self.video_last_frame_time < interval:
+            return
+        self.video_last_frame_time = now
+        self._read_video_frame()
+
+    def _on_play_video(self):
+        if self.video_cap:
+            self.video_playing = not self.video_playing
+            if self.video_playing:
+                self.video_last_frame_time = time.time()
+                self.btn_play.setText("⏸ 暂停")
+            else:
+                self.btn_play.setText("▶ 播放")
+
+    def _stop_video(self):
+        self.video_playing = False
+        if self.video_cap:
+            self.video_cap.release()
+            self.video_cap = None
+        self.video_preview.clear()
+        self.btn_play.setText("▶ 播放")
+
+    # ── 检测记录 ─────────────────────────────────────────
+
+    def _load_sessions(self):
+        self.sessions = []
+        self.session_list.clear()
+        if not DATA_DIR.exists():
+            return
+        for d in sorted(DATA_DIR.iterdir(), reverse=True):
+            if d.is_dir() and d.name.startswith("detection_"):
+                summary = load_json(d / "summary.json")
+                self.sessions.append({"name": d.name, "path": str(d), "summary": summary})
+                self.session_list.addItem(d.name)
+        # 更新数据源下拉
+        self.data_source_combo.clear()
+        self.data_source_combo.addItem("(默认)")
+        for s in self.sessions:
+            self.data_source_combo.addItem(s["name"])
+
+    def _on_session_select(self, row):
+        if row < 0 or row >= len(self.sessions):
+            return
+        s = self.sessions[row]
+        self.selected_session = s
+        summary = s.get("summary", {})
+
+        classes = summary.get("class_counts", {})
+        total = summary.get("total_detections", 0)
+        frames = summary.get("total_frames", 0)
+        fps_val = summary.get("avg_fps", 0)
+        vi = summary.get("video_info", {})
+        vehicle_count = sum(v for k, v in classes.items() if k.lower() in VEHICLE_CLASSES)
+
+        self.stat_frames.set_value(str(frames))
+        self.stat_detections.set_value(str(total))
+        self.stat_vehicles.set_value(str(vehicle_count))
+        self.stat_fps.set_value(str(round(fps_val, 1)))
+
+        # 类别表格
+        self.class_table.setRowCount(0)
+        for cls, count in sorted(classes.items(), key=lambda x: -x[1]):
+            pct = f"{(count / total * 100):.1f}%" if total else "0%"
+            row_idx = self.class_table.rowCount()
+            self.class_table.insertRow(row_idx)
+            self.class_table.setItem(row_idx, 0, QTableWidgetItem(cls))
+            self.class_table.setItem(row_idx, 1, QTableWidgetItem(str(count)))
+            self.class_table.setItem(row_idx, 2, QTableWidgetItem(pct))
+
+        info = (
+            f"视频源: {summary.get('source', 'N/A')}\n"
+            f"分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}\n"
+            f"总帧数: {frames}  总检测: {total}\n"
+            f"车辆数: {vehicle_count}  FPS: {fps_val:.1f}"
+        )
+        self.session_detail.setText(info)
+
+    # ── 交通灯仿真 ───────────────────────────────────────
+
+    def _default_timeline(self):
+        self.timeline = []
+        for i in range(20):
+            is_x = i % 2 == 0
+            self.timeline.append({
+                "phase": "X_GREEN" if is_x else "Y_GREEN",
+                "start_time": i * 13,
+                "car_x_avg": round(3 + (i % 3) * 1.5, 1),
+                "car_y_avg": round(2 + (i % 4) * 1.2, 1),
+                "x_green": 10, "x_red": 13, "y_green": 10, "y_red": 13,
+                "yellow_duration": 3,
+            })
+        self.total_duration = 260
+
+    def _load_timeline(self):
+        sel = self.data_source_combo.currentText()
+        if sel and sel != "(默认)":
+            session_dir = os.path.join(DATA_DIR, sel)
+            frames = load_frames(session_dir)
+            if frames:
+                summary = load_json(os.path.join(session_dir, "summary.json"))
+                vi = summary.get("video_info", {})
+                vw = vi.get("width", 1280)
+                fps_val = vi.get("fps", 30)
+                self.timeline, self.total_duration = build_timeline(frames, vw, fps_val)
+            else:
+                self._default_timeline()
+        else:
+            self._default_timeline()
+
+        # 时间线表格
+        self.timeline_table.setRowCount(0)
+        for t in self.timeline:
+            phase_text = "X绿" if t["phase"] == "X_GREEN" else "Y绿"
+            row_idx = self.timeline_table.rowCount()
+            self.timeline_table.insertRow(row_idx)
+            self.timeline_table.setItem(row_idx, 0, QTableWidgetItem(phase_text))
+            self.timeline_table.setItem(row_idx, 1, QTableWidgetItem(f"{t['start_time']}s"))
+            self.timeline_table.setItem(row_idx, 2, QTableWidgetItem(f"X:{t['car_x_avg']} Y:{t['car_y_avg']}"))
+            green = t["x_green"] if t["phase"] == "X_GREEN" else t["y_green"]
+            self.timeline_table.setItem(row_idx, 3, QTableWidgetItem(f"{green}s"))
+
+        self.current_cycle = -1
+        self.cycle_elapsed = 0
+        self.in_yellow = False
+
+    def _on_start_sim(self):
+        if self.sim_running and not self.sim_paused:
+            return
+        if not self.sim_running:
+            self._load_timeline()
+            self.sim_running = True
+            self.sim_paused = False
+            self.current_cycle = 0
+            self.cycle_elapsed = 0
+            self.in_yellow = False
+            self.yellow_elapsed = 0
+            self.last_tick = time.time()
+        else:
+            self.sim_paused = False
+            self.last_tick = time.time()
+
+    def _on_pause_sim(self):
+        self.sim_paused = True
+
+    def _on_reset_sim(self):
+        self.sim_running = False
+        self.sim_paused = False
+        self.current_cycle = -1
+        self.x_light = "off"
+        self.y_light = "off"
+        self.canvas.update_state()
+        self.timer_text.setText("--")
+        self.progress_bar.setValue(0)
+        self.cycle_info.setText("点击 ▶ 开始模拟")
+
+    def _sim_tick(self):
+        if not self.sim_running or self.sim_paused:
+            return
+        now = time.time()
+        dt = (now - self.last_tick) * self.sim_speed
+        self.last_tick = now
+
+        tl = self.timeline
+        if not tl or self.current_cycle >= len(tl):
+            self._on_reset_sim()
+            self.cycle_info.setText("模拟结束")
+            return
+
+        cycle = tl[self.current_cycle]
+        is_x = cycle["phase"] == "X_GREEN"
+        green_dur = cycle["x_green"] if is_x else cycle["y_green"]
+        yellow_dur = cycle.get("yellow_duration", 3)
+
+        if not self.in_yellow:
+            self.cycle_elapsed += dt
+            remaining = max(0, green_dur - self.cycle_elapsed)
+            self.timer_text.setText(f"{math.ceil(remaining)}s")
+            self.progress_bar.setValue(int(self.cycle_elapsed / green_dur * 100) if green_dur > 0 else 0)
+
+            if is_x:
+                self.x_light = "green"; self.y_light = "red"
+                self.canvas.update_state("green", "red", round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
+            else:
+                self.x_light = "red"; self.y_light = "green"
+                self.canvas.update_state("red", "green", round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
+
+            self.xl_indicator.set_active(self.x_light)
+            self.yl_indicator.set_active(self.y_light)
+
+            phase_label = "X路绿灯 / Y路红灯" if is_x else "Y路绿灯 / X路红灯"
+            self.phase_label.setText(phase_label)
+            self.phase_label.setStyleSheet(f"color: {C_BLUE.name() if is_x else C_ORANGE.name()}; font-size: 12px; font-weight: bold;")
+            self.cycle_info.setText(
+                f"周期 {self.current_cycle+1}/{len(tl)}\n"
+                f"X路: {cycle['car_x_avg']}辆(均) | Y路: {cycle['car_y_avg']}辆(均)\n"
+                f"绿灯: {green_dur}s | 红灯: {cycle['x_red'] if is_x else cycle['y_red']}s"
+            )
+
+            if self.cycle_elapsed >= green_dur:
+                self.in_yellow = True
+                self.yellow_elapsed = 0
+        else:
+            self.yellow_elapsed += dt
+            remaining = max(0, yellow_dur - self.yellow_elapsed)
+            self.timer_text.setText(f"黄灯 {math.ceil(remaining)}s")
+            self.progress_bar.setValue(int(self.yellow_elapsed / yellow_dur * 100) if yellow_dur > 0 else 0)
+
+            flash = int(self.yellow_elapsed * 3) % 2 == 0
+            xc = "yellow" if flash else "off"
+            yc = "yellow" if flash else "off"
+            self.x_light = xc; self.y_light = yc
+            self.canvas.update_state(xc, yc, round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
+            self.xl_indicator.set_active(xc)
+            self.yl_indicator.set_active(yc)
+
+            self.phase_label.setText("黄灯过渡")
+            self.phase_label.setStyleSheet(f"color: {C_YELLOW.name()}; font-size: 12px; font-weight: bold;")
+            self.cycle_info.setText(
+                f"周期 {self.current_cycle+1} -> {self.current_cycle+2}\n"
+                f"双向黄灯 {yellow_dur}s"
+            )
+
+            if self.yellow_elapsed >= yellow_dur:
+                self.current_cycle += 1
+                self.cycle_elapsed = 0
+                self.in_yellow = False
 
 
-# ─── 主入口 ──────────────────────────────────────────
+# ─── 主入口 ──────────────────────────────────────────────
 
 def main():
-    dpg.create_context()
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
 
-    # 中文字体
-    font_paths = [
-        "C:/Windows/Fonts/msyh.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
-        "C:/Windows/Fonts/simsun.ttc",
-    ]
-    with dpg.font_registry():
-        for fp in font_paths:
-            if os.path.exists(fp):
-                default_font = dpg.add_font(fp, 20)
-                dpg.bind_font(default_font)
-                break
+    # 全局字体
+    font = QFont("Microsoft YaHei", 10)
+    app.setFont(font)
 
-    # 用 ASCII 标题避免乱码
-    dpg.create_viewport(title="YOLO Traffic Light System", width=BASE_W, height=BASE_H)
+    # 全局样式
+    app.setStyleSheet("""
+        QMainWindow { background: #f0f2f5; }
+        QWidget { font-family: "Microsoft YaHei", "SimHei", sans-serif; }
+        QToolTip { background: #1f2937; color: white; border: none; border-radius: 4px; padding: 4px 8px; }
+        QScrollBar:vertical {
+            background: #f3f4f6; width: 8px; border-radius: 4px;
+        }
+        QScrollBar::handle:vertical {
+            background: #d1d5db; border-radius: 4px; min-height: 30px;
+        }
+        QScrollBar::handle:vertical:hover { background: #9ca3af; }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+    """)
 
-    build_ui()
-    draw_intersection()
-    load_sessions()
-
-    dpg.set_primary_window("primary_window", True)
-    dpg.setup_dearpygui()
-    dpg.set_viewport_pos([100, 100])
-    dpg.show_viewport()
-
-    _last_vp_w = BASE_W
-    _last_vp_h = BASE_H
-
-    while dpg.is_dearpygui_running():
-        sim_tick()
-        check_detect_status()
-        video_player.tick()
-
-        # 响应式布局
-        vp_w = dpg.get_viewport_width()
-        vp_h = dpg.get_viewport_height()
-        if vp_w != _last_vp_w or vp_h != _last_vp_h:
-            _last_vp_w = vp_w
-            _last_vp_h = vp_h
-
-            scale = min(vp_w / BASE_W, vp_h / BASE_H)
-            state.scale = scale
-
-            # 内容区高度
-            content_h = max(400, vp_h - 30)
-            dpg.configure_item("sidebar", height=content_h)
-            dpg.configure_item("page_yolo", height=content_h)
-            dpg.configure_item("page_traffic", height=content_h)
-
-            # YOLO 页：视频 drawlist 自适应
-            video_w = max(320, int(vp_w - 200 - 340 - 40))
-            video_h = max(180, int(video_w * 9 / 16))
-            dpg.configure_item("video_drawlist", width=video_w, height=video_h)
-            dpg.configure_item("video_draw_img", pmax=(video_w, video_h))
-
-            # 交通灯页：drawlist 自适应
-            iw = max(300, int(vp_w - 200 - 320 - 40))
-            ih = max(300, int(vp_h - 80))
-            dpg.configure_item("intersection_draw", width=iw, height=ih)
-            draw_intersection(x_color=state.x_light, y_color=state.y_light,
-                              width=iw, height=ih)
-
-        dpg.render_dearpygui_frame()
-
-    dpg.destroy_context()
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

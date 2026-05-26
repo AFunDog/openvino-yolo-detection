@@ -382,7 +382,8 @@ def detect_video(source=0, output_path=None):
 
         # 计算FPS
         end_time = time.time()
-        fps = 1.0 / (end_time - start_time)
+        elapsed = end_time - start_time
+        fps = 1.0 / elapsed if elapsed > 0 else 0.0
         fps_list.append(fps)
         if len(fps_list) > 30:  # 保留最近30帧的FPS
             fps_list.pop(0)
