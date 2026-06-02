@@ -16,6 +16,8 @@ from pathlib import Path
 import numpy as np
 import cv2
 
+from algorithm import VAController, FrameFeatures, load_frames
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QPushButton, QLabel, QLineEdit, QTextEdit,
@@ -91,76 +93,6 @@ def load_json(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
-
-
-def load_frames(session_dir):
-    json_path = os.path.join(session_dir, "frames.json")
-    if os.path.exists(json_path):
-        with open(json_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    csv_path = os.path.join(session_dir, "frames.csv")
-    if not os.path.exists(csv_path):
-        return []
-    frames = {}
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            fn = int(row["frame"])
-            if fn not in frames:
-                frames[fn] = {"frame": fn, "timestamp": float(row["timestamp"]), "detections": []}
-            frames[fn]["detections"].append({
-                "class": row["class"], "class_id": int(row["class_id"]),
-                "confidence": float(row["confidence"]),
-                "x1": float(row["x1"]), "y1": float(row["y1"]),
-                "x2": float(row["x2"]), "y2": float(row["y2"]),
-            })
-    return [frames[k] for k in sorted(frames.keys())]
-
-
-def build_timeline(frames, video_width=1280, fps=30.0):
-    YELLOW = 3.0; STD = 10.0; MIN_G = 10.0; MAX_G = 30.0; RATIO = 0.2
-    mid_x = video_width / 2
-    total_dur = len(frames) / fps
-    timeline = []; phase = "X_GREEN"; elapsed = 0.0; idx = 0
-    while elapsed < total_dur:
-        cx_list, cy_list = [], []
-        dur = STD
-        if timeline:
-            last = timeline[-1]
-            dur = last["x_green"] if phase == "X_GREEN" else last["y_green"]
-        end_t = elapsed + dur
-        while idx < len(frames):
-            ft = frames[idx]["frame"] / fps
-            if ft > end_t:
-                break
-            left = right = 0
-            for d in frames[idx].get("detections", []):
-                if d.get("class", "").lower() not in VEHICLE_CLASSES:
-                    continue
-                cx = (d["x1"] + d["x2"]) / 2
-                if cx < mid_x:
-                    left += 1
-                else:
-                    right += 1
-            cx_list.append(left); cy_list.append(right); idx += 1
-        ax = sum(cx_list) / len(cx_list) if cx_list else 0
-        ay = sum(cy_list) / len(cy_list) if cy_list else 0
-        xg, yg = STD, STD
-        if ax > ay:
-            xg = min(STD + STD * RATIO, MAX_G); yg = max(STD - STD * RATIO, MIN_G)
-        elif ay > ax:
-            yg = min(STD + STD * RATIO, MAX_G); xg = max(STD - STD * RATIO, MIN_G)
-        timeline.append({
-            "phase": phase, "start_time": round(elapsed, 1),
-            "car_x_avg": round(ax, 1), "car_y_avg": round(ay, 1),
-            "x_green": round(xg, 1), "x_red": round(yg + YELLOW, 1),
-            "y_green": round(yg, 1), "y_red": round(xg + YELLOW, 1),
-            "yellow_duration": YELLOW,
-        })
-        gt = xg if phase == "X_GREEN" else yg
-        elapsed += gt + YELLOW
-        phase = "Y_GREEN" if phase == "X_GREEN" else "X_GREEN"
-    return timeline, round(total_dur, 1)
 
 
 # ─── 圆角卡片 ────────────────────────────────────────────
@@ -689,20 +621,23 @@ class MainWindow(QMainWindow):
         # 状态
         self.sessions = []
         self.selected_session = None
-        self.timeline = []
-        self.total_duration = 0
-        self.current_cycle = -1
         self.x_light = "off"
         self.y_light = "off"
         self.sim_running = False
         self.sim_paused = False
         self.sim_speed = 5.0
-        self.cycle_elapsed = 0.0
-        self.yellow_elapsed = 0.0
-        self.in_yellow = False
         self.last_tick = 0
         self.detecting = False
         self.detect_progress = ""
+
+        # Vehicle-Actuated 控制器 + 特征提取
+        self.va_controller = VAController()
+        self.feature_extractor = FrameFeatures()
+        self.va_frames = []
+        self.va_fps = 30.0
+        self.va_frame_index = 0
+        self.va_sim_time = 0.0
+        self.va_features = None  # 最近一帧的特征
 
         # 视频播放器
         self.video_cap = None
@@ -1074,13 +1009,13 @@ class MainWindow(QMainWindow):
         ctrl_layout.addWidget(line)
         ctrl_layout.addSpacing(4)
 
-        # 周期信息
-        ci_lbl = QLabel("周期信息")
+        # 相位信息
+        ci_lbl = QLabel("感应控制状态")
         ci_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         ctrl_layout.addWidget(ci_lbl)
         self.cycle_info = QTextEdit()
         self.cycle_info.setReadOnly(True)
-        self.cycle_info.setFixedHeight(60)
+        self.cycle_info.setFixedHeight(90)
         self.cycle_info.setPlaceholderText("点击 ▶ 开始")
         self.cycle_info.setStyleSheet("""
             QTextEdit {
@@ -1090,22 +1025,22 @@ class MainWindow(QMainWindow):
         """)
         ctrl_layout.addWidget(self.cycle_info)
 
-        # 时间线
-        tl_lbl = QLabel("时间线")
-        tl_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        ctrl_layout.addWidget(tl_lbl)
-        self.timeline_table = QTableWidget(0, 4)
-        self.timeline_table.setHorizontalHeaderLabels(["相位", "时间", "车辆", "绿灯"])
-        self.timeline_table.horizontalHeader().setStretchLastSection(True)
-        self.timeline_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.timeline_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.timeline_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.timeline_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.timeline_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.timeline_table.verticalHeader().setVisible(False)
-        self.timeline_table.verticalHeader().setDefaultSectionSize(32)
-        self.timeline_table.setAlternatingRowColors(True)
-        self.timeline_table.setStyleSheet("""
+        # 周期历史
+        hist_lbl = QLabel("切换记录")
+        hist_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        ctrl_layout.addWidget(hist_lbl)
+        self.history_table = QTableWidget(0, 3)
+        self.history_table.setHorizontalHeaderLabels(["相位", "时长", "原因"])
+        self.history_table.horizontalHeader().setStretchLastSection(True)
+        self.history_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.history_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.history_table.horizontalHeader().setStretchLastSection(True)
+        self.history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.history_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.history_table.verticalHeader().setVisible(False)
+        self.history_table.verticalHeader().setDefaultSectionSize(32)
+        self.history_table.setAlternatingRowColors(True)
+        self.history_table.setStyleSheet("""
             QTableWidget {
                 border: none; border-radius: 6px;
                 background: #ffffff; font-size: 12px; gridline-color: transparent;
@@ -1124,7 +1059,7 @@ class MainWindow(QMainWindow):
                 background: #eef2ff;
             }
         """)
-        ctrl_layout.addWidget(self.timeline_table, 1)
+        ctrl_layout.addWidget(self.history_table, 1)
 
         ctrl_w = QWidget()
         ctrl_w.setLayout(ctrl_layout)
@@ -1438,65 +1373,30 @@ class MainWindow(QMainWindow):
         )
         self.session_detail.setText(info)
 
-    # ── 交通灯仿真 ───────────────────────────────────────
+    # ── 交通灯仿真 (Vehicle-Actuated) ────────────────────
 
-    def _default_timeline(self):
-        self.timeline = []
-        for i in range(20):
-            is_x = i % 2 == 0
-            self.timeline.append({
-                "phase": "X_GREEN" if is_x else "Y_GREEN",
-                "start_time": i * 13,
-                "car_x_avg": round(3 + (i % 3) * 1.5, 1),
-                "car_y_avg": round(2 + (i % 4) * 1.2, 1),
-                "x_green": 10, "x_red": 13, "y_green": 10, "y_red": 13,
-                "yellow_duration": 3,
-            })
-        self.total_duration = 260
-
-    def _load_timeline(self):
+    def _start_va_sim(self):
+        """初始化 VA 仿真：加载检测数据，创建特征提取器和控制器"""
         sel = self.data_source_combo.currentText()
         if sel and sel != "(默认)":
             session_dir = os.path.join(DATA_DIR, sel)
-            frames = load_frames(session_dir)
-            if frames:
-                summary = load_json(os.path.join(session_dir, "summary.json"))
-                vi = summary.get("video_info", {})
-                vw = vi.get("width", 1280)
-                fps_val = vi.get("fps", 30)
-                self.timeline, self.total_duration = build_timeline(frames, vw, fps_val)
-            else:
-                self._default_timeline()
+            self.va_frames, self.va_fps = load_frames(session_dir)
         else:
-            self._default_timeline()
+            self.va_frames = []
+            self.va_fps = 30.0
 
-        # 时间线表格
-        self.timeline_table.setRowCount(0)
-        for t in self.timeline:
-            phase_text = "X绿" if t["phase"] == "X_GREEN" else "Y绿"
-            row_idx = self.timeline_table.rowCount()
-            self.timeline_table.insertRow(row_idx)
-            self.timeline_table.setItem(row_idx, 0, QTableWidgetItem(phase_text))
-            self.timeline_table.setItem(row_idx, 1, QTableWidgetItem(f"{t['start_time']}s"))
-            self.timeline_table.setItem(row_idx, 2, QTableWidgetItem(f"X:{t['car_x_avg']} Y:{t['car_y_avg']}"))
-            green = t["x_green"] if t["phase"] == "X_GREEN" else t["y_green"]
-            self.timeline_table.setItem(row_idx, 3, QTableWidgetItem(f"{green}s"))
-
-        self.current_cycle = -1
-        self.cycle_elapsed = 0
-        self.in_yellow = False
+        self.va_controller.reset()
+        self.feature_extractor.reset()
+        self.va_frame_index = 0
+        self.va_sim_time = 0.0
 
     def _on_start_sim(self):
         if self.sim_running and not self.sim_paused:
             return
         if not self.sim_running:
-            self._load_timeline()
+            self._start_va_sim()
             self.sim_running = True
             self.sim_paused = False
-            self.current_cycle = 0
-            self.cycle_elapsed = 0
-            self.in_yellow = False
-            self.yellow_elapsed = 0
             self.last_tick = time.time()
         else:
             self.sim_paused = False
@@ -1508,13 +1408,15 @@ class MainWindow(QMainWindow):
     def _on_reset_sim(self):
         self.sim_running = False
         self.sim_paused = False
-        self.current_cycle = -1
         self.x_light = "off"
         self.y_light = "off"
         self.canvas.update_state()
         self.timer_text.setText("--")
         self.progress_bar.setValue(0)
         self.cycle_info.setText("点击 ▶ 开始模拟")
+        self.history_table.setRowCount(0)
+        self.va_controller.reset()
+        self.feature_extractor.reset()
 
     def _sim_tick(self):
         if not self.sim_running or self.sim_paused:
@@ -1523,70 +1425,102 @@ class MainWindow(QMainWindow):
         dt = (now - self.last_tick) * self.sim_speed
         self.last_tick = now
 
-        tl = self.timeline
-        if not tl or self.current_cycle >= len(tl):
-            self._on_reset_sim()
-            self.cycle_info.setText("模拟结束")
-            return
+        self.va_sim_time += dt
 
-        cycle = tl[self.current_cycle]
-        is_x = cycle["phase"] == "X_GREEN"
-        green_dur = cycle["x_green"] if is_x else cycle["y_green"]
-        yellow_dur = cycle.get("yellow_duration", 3)
-
-        if not self.in_yellow:
-            self.cycle_elapsed += dt
-            remaining = max(0, green_dur - self.cycle_elapsed)
-            self.timer_text.setText(f"{math.ceil(remaining)}s")
-            self.progress_bar.setValue(int(self.cycle_elapsed / green_dur * 100) if green_dur > 0 else 0)
-
-            if is_x:
-                self.x_light = "green"; self.y_light = "red"
-                self.canvas.update_state("green", "red", round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
+        # ── 逐帧处理特征提取 ──
+        # dt 秒 × fps = 需要处理的帧数。每帧之间间隔 1/fps 秒，
+        # 保证位移计算正确。
+        n_frames = max(1, int(dt * max(self.va_fps, 1.0)))
+        for _ in range(min(n_frames, 10)):  # 上限 10 帧/ tick，防止卡顿
+            frame_idx = int(self.va_sim_time * self.va_fps)
+            if self.va_frames:
+                frame_idx = frame_idx % len(self.va_frames)
+                frame_data = self.va_frames[frame_idx]
             else:
-                self.x_light = "red"; self.y_light = "green"
-                self.canvas.update_state("red", "green", round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
+                frame_data = {"frame": frame_idx, "detections": []}
+            self.va_features = self.feature_extractor.process_frame(frame_data)
 
-            self.xl_indicator.set_active(self.x_light)
-            self.yl_indicator.set_active(self.y_light)
+        feats = self.va_features or {
+            "queue_x": 0, "queue_y": 0,
+            "wait_x": 0.0, "wait_y": 0.0,
+            "gap_x": 0.0, "gap_y": 0.0,
+            "arrival_x": 0.0, "arrival_y": 0.0,
+        }
 
-            phase_label = "X路绿灯 / Y路红灯" if is_x else "Y路绿灯 / X路红灯"
-            self.phase_label.setText(phase_label)
-            self.phase_label.setStyleSheet(f"color: {C_BLUE.name() if is_x else C_ORANGE.name()}; font-size: 12px; font-weight: bold;")
-            self.cycle_info.setText(
-                f"周期 {self.current_cycle+1}/{len(tl)}\n"
-                f"X路: {cycle['car_x_avg']}辆(均) | Y路: {cycle['car_y_avg']}辆(均)\n"
-                f"绿灯: {green_dur}s | 红灯: {cycle['x_red'] if is_x else cycle['y_red']}s"
+        # ── 控制器决策 ──
+        x_light, y_light, countdown = self.va_controller.step(
+            feats["queue_x"], feats["queue_y"],
+            feats["wait_x"], feats["wait_y"],
+            feats["gap_x"], feats["gap_y"],
+            dt,
+        )
+
+        state = self.va_controller.get_state()
+        self.x_light = x_light
+        self.y_light = y_light
+
+        # ── UI 更新 ──
+        is_yellow = state["in_yellow"]
+
+        if countdown is not None:
+            self.timer_text.setText(f"{math.ceil(countdown)}s")
+
+        # 进度条
+        if is_yellow:
+            yd = self.va_controller.yellow_duration
+            self.progress_bar.setValue(
+                int(state["yellow_elapsed"] / yd * 100) if yd > 0 else 0
             )
-
-            if self.cycle_elapsed >= green_dur:
-                self.in_yellow = True
-                self.yellow_elapsed = 0
         else:
-            self.yellow_elapsed += dt
-            remaining = max(0, yellow_dur - self.yellow_elapsed)
-            self.timer_text.setText(f"黄灯 {math.ceil(remaining)}s")
-            self.progress_bar.setValue(int(self.yellow_elapsed / yellow_dur * 100) if yellow_dur > 0 else 0)
-
-            flash = int(self.yellow_elapsed * 3) % 2 == 0
-            xc = "yellow" if flash else "off"
-            yc = "yellow" if flash else "off"
-            self.x_light = xc; self.y_light = yc
-            self.canvas.update_state(xc, yc, round(cycle["car_x_avg"]), round(cycle["car_y_avg"]), remaining)
-            self.xl_indicator.set_active(xc)
-            self.yl_indicator.set_active(yc)
-
-            self.phase_label.setText("黄灯过渡")
-            self.phase_label.setStyleSheet(f"color: {C_YELLOW.name()}; font-size: 12px; font-weight: bold;")
-            self.cycle_info.setText(
-                f"周期 {self.current_cycle+1} -> {self.current_cycle+2}\n"
-                f"双向黄灯 {yellow_dur}s"
+            m = self.va_controller.max_green
+            self.progress_bar.setValue(
+                int(state["phase_elapsed"] / m * 100) if m > 0 else 0
             )
 
-            if self.yellow_elapsed >= yellow_dur:
-                self.current_cycle += 1
-                self.cycle_elapsed = 0
-                self.in_yellow = False
+        # Canvas
+        self.canvas.update_state(
+            x_light, y_light, feats["queue_x"], feats["queue_y"], countdown
+        )
+
+        # 指示灯
+        self.xl_indicator.set_active(x_light)
+        self.yl_indicator.set_active(y_light)
+
+        # 相位标签
+        if is_yellow:
+            self.phase_label.setText("黄灯过渡")
+            self.phase_label.setStyleSheet(
+                f"color: {C_YELLOW.name()}; font-size: 12px; font-weight: bold;"
+            )
+        elif state["phase"] == "X":
+            self.phase_label.setText("X路绿灯 / Y路红灯")
+            self.phase_label.setStyleSheet(
+                f"color: {C_BLUE.name()}; font-size: 12px; font-weight: bold;"
+            )
+        else:
+            self.phase_label.setText("Y路绿灯 / X路红灯")
+            self.phase_label.setStyleSheet(
+                f"color: {C_ORANGE.name()}; font-size: 12px; font-weight: bold;"
+            )
+
+        # 状态信息
+        self.cycle_info.setText(
+            f"Vehicle-Actuated | 周期 #{state['cycle_num'] + 1}\n"
+            f"X排队:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
+            f"Y排队:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
+            f"绿灯已过:{state['phase_elapsed']:.1f}s  决策步={self.va_sim_time:.0f}s"
+        )
+
+        # 切换记录表格 (显示最近 20 条)
+        history = self.va_controller.get_history()
+        if history:
+            self.history_table.setRowCount(0)
+            for rec in reversed(history[-20:]):
+                r = self.history_table.rowCount()
+                self.history_table.insertRow(0)
+                self.history_table.setItem(0, 0, QTableWidgetItem(rec.phase))
+                self.history_table.setItem(0, 1, QTableWidgetItem(f"{rec.duration:.1f}s"))
+                self.history_table.setItem(0, 2, QTableWidgetItem(rec.reason))
 
 
 # ─── 主入口 ──────────────────────────────────────────────
