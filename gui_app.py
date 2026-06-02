@@ -11,6 +11,7 @@ import time
 import math
 import threading
 import sys
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -29,13 +30,12 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QSize, QRectF, QPointF, pyqtSignal
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QBrush, QFont, QImage, QPixmap,
-    QLinearGradient, QRadialGradient,
+    QLinearGradient,
 )
 
+import theme_manager as tm
+
 # ─── HiDPI ─────────────────────────────────────────────
-# 必须在 QApplication 创建之前设置，且只能设一次
-# 用 env var 让 Qt 自己处理，避免与终端冲突
-import os
 os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
 
 # ─── 路径 ───────────────────────────────────────────────
@@ -43,47 +43,127 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
 TEST_OUTPUT_DIR = PROJECT_ROOT / "test" / "output"
 
-VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike", "bicycle"}
+VEHICLE_CLASSES = {"car", "van", "bus", "truck"}
 
-# ─── 颜色 ────────────────────────────────────────────────
-C_PRIMARY       = QColor(79, 70, 229)
-C_PRIMARY_HOVER = QColor(109, 99, 255)
-C_RED           = QColor(220, 38, 38)
-C_YELLOW        = QColor(202, 138, 4)
-C_GREEN         = QColor(22, 163, 74)
-C_RED_DIM       = QColor(220, 38, 38, 60)
-C_YELLOW_DIM    = QColor(202, 138, 4, 60)
-C_GREEN_DIM     = QColor(22, 163, 74, 60)
-C_BLUE          = QColor(37, 99, 235)
-C_ORANGE        = QColor(234, 88, 12)
 
-C_BG_BASE       = QColor(240, 242, 245)
-C_BG_SURFACE    = QColor(255, 255, 255)
-C_BG_ELEVATED   = QColor(241, 243, 245)
-C_BG_OVERLAY    = QColor(233, 236, 239)
-C_CARD_BG       = QColor(255, 255, 255)
-C_CARD_BORDER   = QColor(226, 229, 235)
+# ─── 颜色（跟随系统主题） ─────────────────────────────────
+def _init_colors(dark: bool):
+    """根据 is_dark 重新设定所有 C_* 模块级全局变量。"""
+    t = tm.DARK if dark else tm.LIGHT
+    for key, val in t.items():
+        globals()[f"C_{key.upper()}"] = val
+    globals()["C_IS_DARK"] = dark
 
-C_TEXT_PRIMARY   = QColor(17, 24, 39)
-C_TEXT_SECONDARY = QColor(55, 65, 81)
-C_TEXT_MUTED     = QColor(107, 114, 128)
 
-C_BORDER        = QColor(220, 225, 231)
-C_BORDER_LIGHT  = QColor(235, 238, 243)
+# 首次初始化（install 之前用 LIGHT 兜底，install 后会自动同步）
+_init_colors(tm.is_dark())
 
-# Canvas
-C_ROAD          = QColor(82, 86, 89)
-C_ROAD_MARK     = QColor(220, 220, 220)
-C_GRASS         = QColor(76, 153, 76)
-C_SIDEWALK_BG   = QColor(160, 155, 145)
-C_INTERSECTION  = QColor(88, 92, 95)
-C_LANE          = QColor(200, 200, 200, 180)
-C_CROSSWALK     = QColor(240, 240, 240, 200)
-C_SIDEWALK      = QColor(170, 165, 155)
-C_STOP_LINE     = QColor(240, 240, 240, 220)
-C_CENTER_LINE   = QColor(240, 200, 60, 200)
-C_POLE          = QColor(100, 100, 110)
-C_CURB          = QColor(140, 135, 125)
+
+# ─── 动态样式表 ────────────────────────────────────────
+_dynamic_styles: dict = {}  # id(widget) -> (widget, style_func)
+
+
+def _ds(widget, style_func):
+    """注册控件样式表，主题切换时自动通过 style_func() 重新生成。"""
+    _dynamic_styles[id(widget)] = (widget, style_func)
+    widget.setStyleSheet(style_func())
+
+
+def _refresh_all_styles():
+    """主题切换后刷新所有已注册的动态样式表。"""
+    for key, (widget, style_func) in list(_dynamic_styles.items()):
+        try:
+            widget.setStyleSheet(style_func())
+        except RuntimeError:
+            del _dynamic_styles[key]
+
+
+# ─── 全局应用样式表（每次主题切换时重新生成）──────────────
+def _make_app_stylesheet() -> str:
+    """生成全局 QSS，覆盖大多数通用控件样式。"""
+    return f"""
+        QMainWindow {{ background: {C_BG_BASE.name()}; }}
+        QWidget {{ font-family: "Microsoft YaHei", "SimHei", sans-serif; }}
+        QToolTip {{
+            background: {C_TOOLTIP_BG}; color: {C_TOOLTIP_TEXT};
+            border: none; border-radius: 4px; padding: 4px 8px;
+        }}
+        QScrollBar:vertical {{
+            background: {C_SCROLLBAR_BG}; width: 8px; border-radius: 4px;
+        }}
+        QScrollBar::handle:vertical {{
+            background: {C_SCROLLBAR_HANDLE}; border-radius: 4px; min-height: 30px;
+        }}
+        QScrollBar::handle:vertical:hover {{ background: {C_SCROLLBAR_HANDLE_HOVER}; }}
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+
+        QGroupBox#card {{
+            background: {C_CARD_BG.name()};
+            border: 1px solid {C_CARD_BORDER.name()};
+            border-radius: 10px;
+            margin-top: 12px;
+            padding: 14px 12px;
+            font-weight: bold;
+            color: {C_TEXT_SECONDARY.name()};
+        }}
+        QGroupBox#card::title {{
+            subcontrol-origin: margin; left: 12px; top: 2px; padding: 0 6px;
+        }}
+
+        QTableWidget {{
+            border: none; border-radius: 6px;
+            background: {C_TABLE_BG}; font-size: 12px; gridline-color: transparent;
+        }}
+        QTableWidget::item {{
+            padding: 4px 8px; border-bottom: 1px solid {C_TABLE_BORDER};
+        }}
+        QTableWidget::item:alternate {{ background: {C_TABLE_ALT_BG}; }}
+        QHeaderView::section {{
+            background: {C_TABLE_HEADER_BG}; color: {C_TABLE_HEADER_TEXT};
+            border: none; padding: 6px 8px; font-weight: bold; font-size: 11px;
+        }}
+        QTableWidget::item:selected {{ background: {C_TABLE_SELECTED_BG}; }}
+
+        QListWidget {{
+            border: 1px solid {C_SIDEBAR_BORDER}; border-radius: 6px;
+            background: {C_SIDEBAR_ITEM_BG}; font-size: 11px; outline: none;
+        }}
+        QListWidget::item {{
+            padding: 4px 8px; border-bottom: 1px solid {C_TABLE_BORDER};
+        }}
+        QListWidget::item:selected {{
+            background: {C_SIDEBAR_ITEM_SELECTED_BG};
+            color: {C_SIDEBAR_ITEM_SELECTED_TEXT};
+        }}
+
+        QTextEdit {{
+            border: 1px solid {C_DETAIL_BORDER}; border-radius: 6px;
+            background: {C_DETAIL_BG}; font-size: 11px; padding: 4px;
+        }}
+
+        QComboBox {{
+            border: 1px solid {C_INPUT_BORDER}; border-radius: 6px;
+            padding: 4px 8px; background: {C_INPUT_BG}; font-size: 11px;
+        }}
+
+        QMenu {{
+            background: {C_MENU_BG}; border: 1px solid {C_MENU_BORDER};
+            border-radius: 6px; padding: 4px;
+        }}
+        QMenu::item {{ padding: 6px 20px; border-radius: 4px; font-size: 12px; }}
+        QMenu::item:selected {{ background: {C_MENU_DELETE_BG}; color: {C_MENU_DELETE_TEXT}; }}
+
+        QMessageBox {{ background: {C_QMESSAGEBOX_BG}; color: {C_QMESSAGEBOX_TEXT}; }}
+
+        QProgressBar {{ background: {C_PROGRESS_BG}; border: none; border-radius: 3px; }}
+
+        QSlider::groove:horizontal {{
+            background: {C_PROGRESS_BG}; height: 6px; border-radius: 3px;
+        }}
+        QSlider::handle:horizontal {{
+            background: {C_PRIMARY.name()}; width: 14px; margin: -5px 0; border-radius: 7px;
+        }}
+    """
 
 
 # ─── 数据加载 ────────────────────────────────────────────
@@ -98,27 +178,10 @@ def load_json(path):
 # ─── 圆角卡片 ────────────────────────────────────────────
 
 class CardWidget(QGroupBox):
-    """带圆角边框的卡片容器"""
+    """带圆角边框的卡片容器（样式由全局 QSS 控制，此处仅设 objectName）"""
     def __init__(self, title="", parent=None):
         super().__init__(title, parent)
         self.setObjectName("card")
-        self.setStyleSheet("""
-            QGroupBox#card {
-                background: #ffffff;
-                border: 1px solid #e2e5eb;
-                border-radius: 10px;
-                margin-top: 12px;
-                padding: 14px 12px;
-                font-weight: bold;
-                color: #374151;
-            }
-            QGroupBox#card::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                top: 2px;
-                padding: 0 6px;
-            }
-        """)
 
 
 # ─── 十字路口 Canvas ─────────────────────────────────────
@@ -148,9 +211,8 @@ class IntersectionCanvas(QWidget):
 
         W = self.width()
         H = self.height()
-        # 每方向两车道 + 路肩
         road_w = int(W * 0.24)
-        lane_w = road_w / 4  # 单车道宽
+        lane_w = road_w / 4
         curb_w = max(4, int(W * 0.012))
         cx, cy = W / 2, H / 2
 
@@ -170,7 +232,6 @@ class IntersectionCanvas(QWidget):
         for x1, y1, x2, y2 in corners:
             p.setBrush(QBrush(C_SIDEWALK))
             p.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
-            # 靠道路一侧的路沿石
             p.setBrush(QBrush(C_CURB))
             if x1 == 0:
                 p.drawRect(QRectF(x2 - curb_w, y1, curb_w, y2 - y1))
@@ -184,28 +245,23 @@ class IntersectionCanvas(QWidget):
         # ── 道路 ──
         p.setBrush(QBrush(C_ROAD))
         p.setPen(Qt.PenStyle.NoPen)
-        # 水平道路
         p.drawRect(QRectF(0, cy - road_w/2, W, road_w))
-        # 垂直道路
         p.drawRect(QRectF(cx - road_w/2, 0, road_w, H))
-        # 交叉口
         p.setBrush(QBrush(C_INTERSECTION))
         p.drawRect(QRectF(cx - road_w/2, cy - road_w/2, road_w, road_w))
 
-        # ── 车道分隔线（白色虚线） ──
+        # ── 车道分隔线 ──
         pen_lane = QPen(C_LANE, max(1, int(W * 0.004)), Qt.PenStyle.DashLine)
         p.setPen(pen_lane)
         hw = lane_w
-        # 水平道路车道线
         for lo in [-hw, hw]:
             p.drawLine(int(0), int(cy + lo), int(cx - road_w/2), int(cy + lo))
             p.drawLine(int(cx + road_w/2), int(cy + lo), int(W), int(cy + lo))
-        # 垂直道路车道线
         for lo in [-hw, hw]:
             p.drawLine(int(cx + lo), int(0), int(cx + lo), int(cy - road_w/2))
             p.drawLine(int(cx + lo), int(cy + road_w/2), int(cx + lo), int(H))
 
-        # ── 中心线（黄色双实线） ──
+        # ── 中心线 ──
         pen_center = QPen(C_CENTER_LINE, max(1, int(W * 0.005)))
         p.setPen(pen_center)
         for offset in [-2, 2]:
@@ -214,38 +270,30 @@ class IntersectionCanvas(QWidget):
             p.drawLine(int(cx + offset), int(0), int(cx + offset), int(cy - road_w/2))
             p.drawLine(int(cx + offset), int(cy + road_w/2), int(cx + offset), int(H))
 
-        # ── 人行横道（斑马线） ──
+        # ── 人行横道 ──
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(C_CROSSWALK))
         stripe_w = max(3, int(road_w * 0.06))
         gap = max(3, int(road_w * 0.04))
         cw_len = max(12, int(road_w * 0.3))
-        # 上方横道
         yb = cy - road_w/2 - cw_len
         for i in range(int(road_w / (stripe_w + gap))):
             p.drawRect(QRectF(cx - road_w/2 + i * (stripe_w + gap), yb, stripe_w, cw_len))
-        # 下方横道
         yb = cy + road_w/2
         for i in range(int(road_w / (stripe_w + gap))):
             p.drawRect(QRectF(cx - road_w/2 + i * (stripe_w + gap), yb, stripe_w, cw_len))
-        # 左侧横道
         xb = cx - road_w/2 - cw_len
         for i in range(int(road_w / (stripe_w + gap))):
             p.drawRect(QRectF(xb, cy - road_w/2 + i * (stripe_w + gap), cw_len, stripe_w))
-        # 右侧横道
         xb = cx + road_w/2
         for i in range(int(road_w / (stripe_w + gap))):
             p.drawRect(QRectF(xb, cy - road_w/2 + i * (stripe_w + gap), cw_len, stripe_w))
 
         # ── 停车线 ──
         p.setPen(QPen(C_STOP_LINE, max(2, int(W * 0.005))))
-        # 上方停车线（左半幅，向右行驶的车辆）
         p.drawLine(int(cx - road_w/2), int(cy - road_w/2 - 2), int(cx), int(cy - road_w/2 - 2))
-        # 下方停车线
         p.drawLine(int(cx), int(cy + road_w/2 + 2), int(cx + road_w/2), int(cy + road_w/2 + 2))
-        # 左侧停车线
         p.drawLine(int(cx - road_w/2 - 2), int(cy), int(cx - road_w/2 - 2), int(cy + road_w/2))
-        # 右侧停车线
         p.drawLine(int(cx + road_w/2 + 2), int(cy - road_w/2), int(cx + road_w/2 + 2), int(cy))
 
         # ── 转向箭头 ──
@@ -254,30 +302,23 @@ class IntersectionCanvas(QWidget):
         self._draw_arrow(p, cx - road_w/2 - cw_len - lane_w, cy + lane_w * 0.5, "down", W)
         self._draw_arrow(p, cx + road_w/2 + cw_len + lane_w, cy - lane_w * 1.5, "down", W)
 
-        # ── 交通灯（四角放置） ──
-        # 灯杆在路口四角人行道上，灯臂水平伸向路口中心方向
-        # X方向灯控制水平道路车辆，Y方向灯控制垂直道路车辆
-
+        # ── 交通灯 ──
         pole_h = max(28, int(H * 0.065))
         arm_len = max(14, int(W * 0.03))
         corner_off = max(8, int(W * 0.018))
 
-        # X方向灯 - 左上角（臂向右伸，控制从左驶来的车）
         bx1 = cx - road_w/2 - corner_off
         by1 = cy - road_w/2 - corner_off
         self._draw_traffic_light(p, bx1, by1, self.x_color, pole_h, arm_len, "right", W)
 
-        # X方向灯 - 右下角（臂向左伸，控制从右驶来的车）
         bx2 = cx + road_w/2 + corner_off
         by2 = cy + road_w/2 + corner_off
         self._draw_traffic_light(p, bx2, by2, self.x_color, pole_h, arm_len, "left", W)
 
-        # Y方向灯 - 右上角（臂向左伸向垂直道路，控制从上驶来的车）
         bx3 = cx + road_w/2 + corner_off
         by3 = cy - road_w/2 - corner_off
         self._draw_traffic_light(p, bx3, by3, self.y_color, pole_h, arm_len, "left", W)
 
-        # Y方向灯 - 左下角（臂向右伸向垂直道路，控制从下驶来的车）
         bx4 = cx - road_w/2 - corner_off
         by4 = cy + road_w/2 + corner_off
         self._draw_traffic_light(p, bx4, by4, self.y_color, pole_h, arm_len, "right", W)
@@ -290,40 +331,31 @@ class IntersectionCanvas(QWidget):
         if self.countdown is not None:
             cfs = max(14, int(W * 0.032))
             p.setFont(QFont("Microsoft YaHei", cfs, QFont.Weight.Bold))
-            p.setPen(QPen(QColor(255, 255, 255, 200)))
-            txt = str(math.ceil(self.countdown))
-            # 画一个半透明圆底
-            p.setBrush(QBrush(QColor(0, 0, 0, 80)))
+            p.setBrush(QBrush(C_CANVAS_COUNTDOWN_BG))
             p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(QRectF(cx - cfs * 1.1, cy - cfs * 1.1, cfs * 2.2, cfs * 2.2))
-            p.setPen(QPen(QColor(255, 255, 255, 220)))
-            p.drawText(QRectF(cx - cfs, cy - cfs, cfs * 2, cfs * 2), Qt.AlignmentFlag.AlignCenter, txt)
+            p.setPen(QPen(C_CANVAS_COUNTDOWN_TEXT))
+            p.drawText(QRectF(cx - cfs, cy - cfs, cfs * 2, cfs * 2), Qt.AlignmentFlag.AlignCenter,
+                       str(math.ceil(self.countdown)))
 
         p.end()
 
     def _draw_arrow(self, p, x, y, direction, W):
-        """画路面转向箭头"""
         size = max(6, int(W * 0.02))
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(QColor(220, 220, 220, 160)))
+        p.setBrush(QBrush(C_ARROW_COLOR))
         if direction == "right":
             pts = [
-                QPointF(x - size, y - size/2),
-                QPointF(x + size/2, y - size/2),
-                QPointF(x + size/2, y - size),
-                QPointF(x + size, y),
-                QPointF(x + size/2, y + size),
-                QPointF(x + size/2, y + size/2),
+                QPointF(x - size, y - size/2), QPointF(x + size/2, y - size/2),
+                QPointF(x + size/2, y - size), QPointF(x + size, y),
+                QPointF(x + size/2, y + size), QPointF(x + size/2, y + size/2),
                 QPointF(x - size, y + size/2),
             ]
         elif direction == "down":
             pts = [
-                QPointF(x - size/2, y - size),
-                QPointF(x + size/2, y - size),
-                QPointF(x + size/2, y + size/2),
-                QPointF(x + size, y + size/2),
-                QPointF(x, y + size),
-                QPointF(x - size, y + size/2),
+                QPointF(x - size/2, y - size), QPointF(x + size/2, y - size),
+                QPointF(x + size/2, y + size/2), QPointF(x + size, y + size/2),
+                QPointF(x, y + size), QPointF(x - size, y + size/2),
                 QPointF(x - size/2, y + size/2),
             ]
         else:
@@ -331,7 +363,6 @@ class IntersectionCanvas(QWidget):
         p.drawPolygon(*pts)
 
     def _draw_traffic_light(self, p, bx, by, active_color, pole_h, arm_len, facing, W):
-        """画交通灯：垂直灯杆 + 水平灯臂 + 灯箱"""
         bw = max(14, int(W * 0.03))
         bh = max(38, int(W * 0.075))
         r = max(4, int(W * 0.008))
@@ -340,35 +371,27 @@ class IntersectionCanvas(QWidget):
 
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(C_POLE))
-
-        # 灯杆（从地面垂直向上延伸）
         pole_top = by - pole_h
         p.drawRect(QRectF(bx - pole_w/2, pole_top, pole_w, pole_h))
 
-        # 灯臂（从杆顶水平延伸向路口方向）+ 灯箱
         if facing == "right":
             p.drawRect(QRectF(bx, pole_top - arm_h/2, arm_len, arm_h))
             self._draw_light_box(p, bx + arm_len, pole_top, bw, bh, r, active_color)
-        else:  # facing == "left"
+        else:
             p.drawRect(QRectF(bx - arm_len, pole_top - arm_h/2, arm_len, arm_h))
             self._draw_light_box(p, bx - arm_len, pole_top, bw, bh, r, active_color)
 
     def _draw_light_box(self, p, lx, ly, bw, bh, r, active_color):
-        """画灯体"""
-        # 外壳阴影
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(QColor(30, 30, 35)))
+        p.setBrush(QBrush(C_LIGHT_BOX_OUTER))
         p.drawRoundedRect(QRectF(lx - bw/2 - 1, ly - bh/2 - 1, bw + 2, bh + 2), 4, 4)
-        # 外壳
-        p.setBrush(QBrush(QColor(60, 60, 68)))
+        p.setBrush(QBrush(C_LIGHT_BOX_BODY))
         p.drawRoundedRect(QRectF(lx - bw/2, ly - bh/2, bw, bh), 3, 3)
-        # 内壳
         inner_m = max(2, int(bw * 0.12))
-        p.setBrush(QBrush(QColor(40, 40, 48)))
+        p.setBrush(QBrush(C_LIGHT_BOX_INNER))
         p.drawRoundedRect(QRectF(lx - bw/2 + inner_m, ly - bh/2 + inner_m,
                                    bw - inner_m * 2, bh - inner_m * 2), 2, 2)
 
-        # 三灯
         for i, cn in enumerate(["red", "yellow", "green"]):
             by = ly - bh/3 + i * (bh/3)
             is_on = cn == active_color
@@ -378,14 +401,12 @@ class IntersectionCanvas(QWidget):
                 fill = C_YELLOW if is_on else C_YELLOW_DIM
             else:
                 fill = C_GREEN if is_on else C_GREEN_DIM
-            # 发光晕
             if is_on:
                 glow = QColor(fill)
                 glow.setAlpha(40)
                 p.setBrush(QBrush(glow))
                 p.setPen(Qt.PenStyle.NoPen)
                 p.drawEllipse(QRectF(lx - r - 8, by - r - 8, (r + 8)*2, (r + 8)*2))
-                # 外圈
                 glow2 = QColor(fill)
                 glow2.setAlpha(80)
                 p.setBrush(QBrush(glow2))
@@ -395,49 +416,43 @@ class IntersectionCanvas(QWidget):
             p.drawEllipse(QRectF(lx - r, by - r, r*2, r*2))
 
     def _draw_vehicles(self, p, cx, cy, road_w, lane_w, W):
-        """画简单车辆图标"""
         car_w = max(8, int(road_w * 0.15))
         car_h = max(5, int(road_w * 0.09))
 
-        # X方向车辆（左→右，上半幅路）
         p.setPen(Qt.PenStyle.NoPen)
         for i in range(min(self.car_x, 5)):
             x_off = cx - road_w/2 - car_w * 2 - i * (car_w + 4)
             y_off = cy - lane_w * 0.5
-            p.setBrush(QBrush(C_BLUE))
+            p.setBrush(QBrush(C_VEHICLE_BLUE))
             p.drawRoundedRect(QRectF(x_off, y_off - car_h/2, car_w, car_h), 2, 2)
-            # 车窗
-            p.setBrush(QBrush(QColor(150, 200, 255, 180)))
+            p.setBrush(QBrush(C_VEHICLE_WINDOW_BLUE))
             p.drawRect(QRectF(x_off + car_w * 0.55, y_off - car_h/2 + 1, car_w * 0.35, car_h - 2))
 
-        # X方向车辆（右→左，下半幅路）
         p.setPen(Qt.PenStyle.NoPen)
         for i in range(min(self.car_x, 5)):
             x_off = cx + road_w/2 + car_w * 0.5 + i * (car_w + 4)
             y_off = cy + lane_w * 0.5
-            p.setBrush(QBrush(C_BLUE))
+            p.setBrush(QBrush(C_VEHICLE_BLUE))
             p.drawRoundedRect(QRectF(x_off, y_off - car_h/2, car_w, car_h), 2, 2)
-            p.setBrush(QBrush(QColor(150, 200, 255, 180)))
+            p.setBrush(QBrush(C_VEHICLE_WINDOW_BLUE))
             p.drawRect(QRectF(x_off + car_w * 0.1, y_off - car_h/2 + 1, car_w * 0.35, car_h - 2))
 
-        # Y方向车辆（上→下，右半幅路）
         p.setPen(Qt.PenStyle.NoPen)
         for i in range(min(self.car_y, 5)):
             x_off = cx + lane_w * 0.5
             y_off = cy - road_w/2 - car_w * 2 - i * (car_w + 4)
-            p.setBrush(QBrush(C_ORANGE))
+            p.setBrush(QBrush(C_VEHICLE_ORANGE))
             p.drawRoundedRect(QRectF(x_off - car_h/2, y_off, car_h, car_w), 2, 2)
-            p.setBrush(QBrush(QColor(255, 220, 150, 180)))
+            p.setBrush(QBrush(C_VEHICLE_WINDOW_ORANGE))
             p.drawRect(QRectF(x_off - car_h/2 + 1, y_off + car_w * 0.55, car_h - 2, car_w * 0.35))
 
-        # Y方向车辆（下→上，左半幅路）
         p.setPen(Qt.PenStyle.NoPen)
         for i in range(min(self.car_y, 5)):
             x_off = cx - lane_w * 0.5
             y_off = cy + road_w/2 + car_w * 0.5 + i * (car_w + 4)
-            p.setBrush(QBrush(C_ORANGE))
+            p.setBrush(QBrush(C_VEHICLE_ORANGE))
             p.drawRoundedRect(QRectF(x_off - car_h/2, y_off, car_h, car_w), 2, 2)
-            p.setBrush(QBrush(QColor(255, 220, 150, 180)))
+            p.setBrush(QBrush(C_VEHICLE_WINDOW_ORANGE))
             p.drawRect(QRectF(x_off - car_h/2 + 1, y_off + car_w * 0.1, car_h - 2, car_w * 0.35))
 
 
@@ -470,8 +485,8 @@ class VideoPreviewWidget(QWidget):
             y = (self.height() - scaled.height()) // 2
             p.drawImage(x, y, scaled)
         else:
-            p.fillRect(self.rect(), QColor(20, 20, 26))
-            p.setPen(QPen(C_TEXT_MUTED))
+            p.fillRect(self.rect(), C_VIDEO_BG)
+            p.setPen(QPen(C_VIDEO_PLACEHOLDER_TEXT))
             p.setFont(QFont("Microsoft YaHei", 12))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "无视频")
         p.end()
@@ -498,22 +513,22 @@ class NavButton(QPushButton):
 
     def _update_style(self):
         if self._active:
-            self.setStyleSheet("""
-                QPushButton {
-                    background: #4f46e5; color: white; border: none;
-                    border-radius: 8px; padding: 6px 14px; text-align: left;
-                    font-size: 13px; font-weight: bold;
-                }
-                QPushButton:hover { background: #6d63ff; }
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background: {C_NAV_ACTIVE_BG}; color: {C_NAV_ACTIVE_TEXT};
+                    border: none; border-radius: 8px; padding: 6px 14px;
+                    text-align: left; font-size: 13px; font-weight: bold;
+                }}
+                QPushButton:hover {{ background: {C_NAV_ACTIVE_HOVER_BG}; }}
             """)
         else:
-            self.setStyleSheet("""
-                QPushButton {
-                    background: #f1f3f5; color: #374151; border: none;
-                    border-radius: 8px; padding: 6px 14px; text-align: left;
-                    font-size: 13px;
-                }
-                QPushButton:hover { background: #e9ecef; }
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background: {C_NAV_INACTIVE_BG}; color: {C_NAV_INACTIVE_TEXT};
+                    border: none; border-radius: 8px; padding: 6px 14px;
+                    text-align: left; font-size: 13px;
+                }}
+                QPushButton:hover {{ background: {C_NAV_HOVER_BG}; }}
             """)
 
 
@@ -523,7 +538,6 @@ class ProgressBarDelegate(QStyledItemDelegate):
     """在表格单元格内绘制迷你进度条 + 百分比文字"""
 
     def paint(self, painter, option, index):
-        # 获取百分比值
         text = index.data(Qt.ItemDataRole.DisplayRole) or ""
         pct = 0.0
         try:
@@ -531,33 +545,28 @@ class ProgressBarDelegate(QStyledItemDelegate):
         except ValueError:
             pass
 
-        # 先绘制默认背景/选中态
         painter.save()
         if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, QColor(238, 242, 255))
+            painter.fillRect(option.rect, QColor(C_TABLE_SELECTED_BG))
         elif index.row() % 2 == 1:
-            painter.fillRect(option.rect, QColor(250, 251, 252))
+            painter.fillRect(option.rect, QColor(C_TABLE_ALT_BG))
 
-        # 进度条区域
         r = option.rect.adjusted(6, 4, -6, -4)
         bar_w = int(r.width() * pct / 100)
 
-        # 背景
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(229, 231, 235)))
+        painter.setBrush(QBrush(QColor(C_PROGRESS_BG)))
         painter.drawRoundedRect(r, 3, 3)
 
-        # 填充
         if bar_w > 0:
             fill_rect = QRectF(r.x(), r.y(), bar_w, r.height())
             grad = QLinearGradient(fill_rect.topLeft(), fill_rect.topRight())
-            grad.setColorAt(0, QColor(79, 70, 229))
-            grad.setColorAt(1, QColor(109, 99, 255))
+            grad.setColorAt(0, C_PRIMARY)
+            grad.setColorAt(1, C_PRIMARY_HOVER)
             painter.setBrush(QBrush(grad))
             painter.drawRoundedRect(fill_rect, 3, 3)
 
-        # 文字
-        painter.setPen(QPen(QColor(17, 24, 39)))
+        painter.setPen(QPen(C_TEXT_PRIMARY))
         painter.setFont(QFont("Microsoft YaHei", 9))
         painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, text)
         painter.restore()
@@ -566,19 +575,28 @@ class ProgressBarDelegate(QStyledItemDelegate):
 # ─── 统计数字标签 ────────────────────────────────────────
 
 class StatLabel(QWidget):
-    def __init__(self, value="0", label="", color=C_PRIMARY, parent=None):
+    def __init__(self, value="0", label="", color_key="primary", parent=None):
         super().__init__(parent)
+        self._color_key = color_key
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
         self.val_label = QLabel(value)
-        self.val_label.setStyleSheet(f"color: {color.name()}; font-size: 20px; font-weight: bold;")
         self.val_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label = QLabel(label)
-        self.name_label.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.val_label)
         layout.addWidget(self.name_label)
+        self._refresh_style()
+
+    def _refresh_style(self):
+        c = globals().get(f"C_{self._color_key.upper()}", C_PRIMARY)
+        self.val_label.setStyleSheet(
+            f"color: {c.name()}; font-size: 20px; font-weight: bold;"
+        )
+        self.name_label.setStyleSheet(
+            f"color: {C_TEXT_MUTED.name()}; font-size: 11px;"
+        )
 
     def set_value(self, v):
         self.val_label.setText(str(v))
@@ -587,27 +605,34 @@ class StatLabel(QWidget):
 # ─── 交通灯指示器 ────────────────────────────────────────
 
 class TrafficLightIndicator(QWidget):
-    def __init__(self, label="X 方向", color=C_BLUE, parent=None):
+    def __init__(self, label="X 方向", color_key="blue", parent=None):
         super().__init__(parent)
+        self._color_key = color_key  # 存储在主题词典里的 key，延迟解析
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        lbl = QLabel(label)
-        lbl.setStyleSheet(f"color: {color.name()}; font-weight: bold; font-size: 12px;")
-        layout.addWidget(lbl)
-        self.lights = {}
-        for name, dim_c in [("red", C_RED_DIM), ("yellow", C_YELLOW_DIM), ("green", C_GREEN_DIM)]:
+        self._lbl = QLabel(label)
+        layout.addWidget(self._lbl)
+        self._dots = {}  # name -> QLabel
+        for name in ("red", "yellow", "green"):
             dot = QLabel("●")
-            dot.setStyleSheet(f"color: {dim_c.name()}; font-size: 18px;")
+            dot.setStyleSheet(f"font-size: 18px;")
             layout.addWidget(dot)
-            self.lights[name] = (dot, dim_c)
+            self._dots[name] = dot
+        self._refresh_style()
+
+    def _refresh_style(self):
+        c = globals().get(f"C_{self._color_key.upper()}", C_BLUE)
+        self._lbl.setStyleSheet(f"color: {c.name()}; font-weight: bold; font-size: 12px;")
+        dims = {"red": C_RED_DIM, "yellow": C_YELLOW_DIM, "green": C_GREEN_DIM}
+        for name, dot in self._dots.items():
+            dot.setStyleSheet(f"color: {dims[name].name()}; font-size: 18px;")
 
     def set_active(self, color_name):
         on_map = {"red": C_RED, "yellow": C_YELLOW, "green": C_GREEN}
-        for name, (dot, dim_c) in self.lights.items():
-            if name == color_name:
-                dot.setStyleSheet(f"color: {on_map[name].name()}; font-size: 18px;")
-            else:
-                dot.setStyleSheet(f"color: {dim_c.name()}; font-size: 18px;")
+        dim_map = {"red": C_RED_DIM, "yellow": C_YELLOW_DIM, "green": C_GREEN_DIM}
+        for name, dot in self._dots.items():
+            c = on_map[name] if name == color_name else dim_map[name]
+            dot.setStyleSheet(f"color: {c.name()}; font-size: 18px;")
 
 
 # ─── 主窗口 ──────────────────────────────────────────────
@@ -630,22 +655,27 @@ class MainWindow(QMainWindow):
         self.detecting = False
         self.detect_progress = ""
 
-        # Vehicle-Actuated 控制器 + 特征提取
+        # Vehicle-Actuated 控制器
         self.va_controller = VAController()
         self.feature_extractor = FrameFeatures()
         self.va_frames = []
         self.va_fps = 30.0
         self.va_frame_index = 0
         self.va_sim_time = 0.0
-        self.va_features = None  # 最近一帧的特征
+        self.va_features = None
 
         # 视频播放器
         self.video_cap = None
         self.video_playing = False
         self.video_fps = 30
         self.video_last_frame_time = 0
-        self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0}
+        self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0, "video_fps": None}
         self._detect_dirty = False
+
+        # 实时检测 → 仿真数据管道
+        self._live_frames: deque = deque(maxlen=500)
+        self._live_frames_lock = threading.Lock()
+        self._sim_live_mode = False
 
         self._build_ui()
         self._connect_signals()
@@ -653,7 +683,7 @@ class MainWindow(QMainWindow):
         # 定时器
         self.sim_timer = QTimer()
         self.sim_timer.timeout.connect(self._sim_tick)
-        self.sim_timer.start(33)  # ~30fps
+        self.sim_timer.start(33)
 
         self.video_timer = QTimer()
         self.video_timer.timeout.connect(self._video_tick)
@@ -666,18 +696,35 @@ class MainWindow(QMainWindow):
         self._load_sessions()
         self.canvas.update_state()
 
+    # ── 主题刷新 ─────────────────────────────────────────
+
+    def refresh_theme(self):
+        """系统主题变化时调用，刷新所有颜色和样式。"""
+        dark = tm.is_dark()
+        _init_colors(dark)
+        app = QApplication.instance()
+        app.setPalette(tm.create_palette(dark))
+        app.setStyleSheet(_make_app_stylesheet())
+        _refresh_all_styles()
+        for w in self.findChildren(NavButton):
+            w._update_style()
+        for w in self.findChildren(StatLabel):
+            w._refresh_style()
+        for w in self.findChildren(TrafficLightIndicator):
+            w._refresh_style()
+        self.update()
+
     # ── UI 构建 ──────────────────────────────────────────
 
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        central.setStyleSheet("background: #f0f2f5;")
+        _ds(central, lambda: f"background: {C_BG_BASE.name()};")
 
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 主体：侧栏 + 内容
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
@@ -685,7 +732,7 @@ class MainWindow(QMainWindow):
         # ── 左侧导航栏 ──
         sidebar = QWidget()
         sidebar.setFixedWidth(200)
-        sidebar.setStyleSheet("background: #ffffff; border-right: 1px solid #e2e5eb;")
+        _ds(sidebar, lambda: f"background: {C_SIDEBAR_BG}; border-right: 1px solid {C_SIDEBAR_BORDER};")
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(8, 12, 8, 8)
         sidebar_layout.setSpacing(8)
@@ -699,25 +746,17 @@ class MainWindow(QMainWindow):
         sidebar_layout.addSpacing(8)
         line = QWidget()
         line.setFixedHeight(1)
-        line.setStyleSheet("background: #e2e5eb;")
+        _ds(line, lambda: f"background: {C_SIDEBAR_BORDER};")
         sidebar_layout.addWidget(line)
         sidebar_layout.addSpacing(8)
 
         lbl = QLabel("检测记录")
-        lbl.setStyleSheet(f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px; font-weight: bold;")
+        _ds(lbl, lambda: f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px; font-weight: bold;")
         sidebar_layout.addWidget(lbl)
 
         self.session_list = QListWidget()
         self.session_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.session_list.customContextMenuRequested.connect(self._on_session_context_menu)
-        self.session_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #e2e5eb; border-radius: 6px;
-                background: #f9fafb; font-size: 11px; outline: none;
-            }
-            QListWidget::item { padding: 4px 8px; border-bottom: 1px solid #f3f4f6; }
-            QListWidget::item:selected { background: #eef2ff; color: #4f46e5; }
-        """)
         sidebar_layout.addWidget(self.session_list, 1)
 
         body.addWidget(sidebar)
@@ -735,15 +774,15 @@ class MainWindow(QMainWindow):
         # ── 底部状态栏 ──
         status_bar = QWidget()
         status_bar.setFixedHeight(28)
-        status_bar.setStyleSheet("background: #ffffff; border-top: 1px solid #e2e5eb;")
+        _ds(status_bar, lambda: f"background: {C_STATUS_BG}; border-top: 1px solid {C_STATUS_BORDER};")
         status_layout = QHBoxLayout(status_bar)
         status_layout.setContentsMargins(12, 0, 12, 0)
         self.status_label = QLabel("就绪")
-        self.status_label.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
+        _ds(self.status_label, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
         status_layout.addWidget(self.status_label)
         status_layout.addStretch()
         brand = QLabel("OpenVINO + YOLOv26")
-        brand.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
+        _ds(brand, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 11px;")
         status_layout.addWidget(brand)
         main_layout.addWidget(status_bar)
 
@@ -753,87 +792,75 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 8)
         layout.setSpacing(8)
 
-        # 上传区卡片
         card_upload = CardWidget("YOLOv26 视频检测")
         upload_layout = QVBoxLayout(card_upload)
         upload_layout.setSpacing(6)
         row = QHBoxLayout()
         self.video_path_input = QLineEdit()
         self.video_path_input.setPlaceholderText("输入视频路径...")
-        self.video_path_input.setStyleSheet("""
-            QLineEdit {
-                border: 1px solid #d1d5db; border-radius: 6px;
-                padding: 6px 10px; background: #f9fafb; font-size: 12px;
-            }
-            QLineEdit:focus { border-color: #4f46e5; background: #fff; }
+        _ds(self.video_path_input, lambda: f"""
+            QLineEdit {{
+                border: 1px solid {C_INPUT_BORDER}; border-radius: 6px;
+                padding: 6px 10px; background: {C_INPUT_BG}; font-size: 12px;
+            }}
+            QLineEdit:focus {{ border-color: {C_INPUT_FOCUS_BORDER}; background: {C_INPUT_FOCUS_BG}; }}
         """)
         row.addWidget(self.video_path_input, 1)
 
         btn_browse = QPushButton("浏览")
         btn_browse.setFixedSize(70, 32)
-        btn_browse.setStyleSheet(self._btn_style(C_PRIMARY))
+        _ds(btn_browse, lambda: MainWindow._btn_style(C_PRIMARY))
         btn_browse.clicked.connect(self._on_browse_video)
         row.addWidget(btn_browse)
 
         self.btn_detect = QPushButton("开始检测")
         self.btn_detect.setFixedSize(90, 32)
-        self.btn_detect.setStyleSheet(self._btn_style(C_GREEN))
+        _ds(self.btn_detect, lambda: MainWindow._btn_style(C_GREEN))
         self.btn_detect.clicked.connect(self._on_start_detect)
         row.addWidget(self.btn_detect)
         upload_layout.addLayout(row)
 
         row2 = QHBoxLayout()
         self.detect_status = QLabel("就绪")
-        self.detect_status.setStyleSheet(f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px;")
+        _ds(self.detect_status, lambda: f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px;")
         row2.addWidget(self.detect_status)
         row2.addStretch()
         self.btn_play = QPushButton("播放")
         self.btn_play.setFixedSize(70, 28)
-        self.btn_play.setStyleSheet(self._btn_style(C_PRIMARY, 10))
+        _ds(self.btn_play, lambda: MainWindow._btn_style(C_PRIMARY, 10))
         self.btn_play.clicked.connect(self._on_play_video)
         row2.addWidget(self.btn_play)
         upload_layout.addLayout(row2)
         layout.addWidget(card_upload)
 
-        # 下方两栏
         bottom = QHBoxLayout()
         bottom.setSpacing(8)
 
-        # 左列
         left_col = QVBoxLayout()
         left_col.setSpacing(8)
 
-        # 统计
         card_stats = CardWidget()
         stats_layout = QHBoxLayout(card_stats)
         stats_layout.setSpacing(16)
-        self.stat_frames = StatLabel("0", "帧数", C_BLUE)
-        self.stat_detections = StatLabel("0", "检测数", C_PRIMARY)
-        self.stat_vehicles = StatLabel("0", "车辆数", C_GREEN)
-        self.stat_fps = StatLabel("0", "FPS", C_ORANGE)
+        self.stat_frames = StatLabel("0", "帧数", "blue")
+        self.stat_detections = StatLabel("0", "检测数", "primary")
+        self.stat_vehicles = StatLabel("0", "车辆数", "green")
+        self.stat_fps = StatLabel("0", "FPS", "orange")
         stats_layout.addWidget(self.stat_frames)
         stats_layout.addWidget(self.stat_detections)
         stats_layout.addWidget(self.stat_vehicles)
         stats_layout.addWidget(self.stat_fps)
         left_col.addWidget(card_stats)
 
-        # 详情
         card_detail = CardWidget("检测详情")
         detail_layout = QVBoxLayout(card_detail)
         self.session_detail = QTextEdit()
         self.session_detail.setReadOnly(True)
         self.session_detail.setFixedHeight(70)
         self.session_detail.setPlaceholderText("从左侧选择一条检测记录")
-        self.session_detail.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #e2e5eb; border-radius: 6px;
-                background: #f9fafb; font-size: 11px; padding: 4px;
-            }
-        """)
         detail_layout.addWidget(self.session_detail)
         left_col.addWidget(card_detail)
 
-        # 类别统计
         card_class = CardWidget("类别统计")
         class_layout = QVBoxLayout(card_class)
         self.class_table = QTableWidget(0, 3)
@@ -847,25 +874,6 @@ class MainWindow(QMainWindow):
         self.class_table.verticalHeader().setDefaultSectionSize(32)
         self.class_table.setAlternatingRowColors(True)
         self.class_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.class_table.setStyleSheet("""
-            QTableWidget {
-                border: none; border-radius: 6px;
-                background: #ffffff; font-size: 12px; gridline-color: transparent;
-            }
-            QTableWidget::item {
-                padding: 4px 8px; border-bottom: 1px solid #f3f4f6;
-            }
-            QTableWidget::item:alternate {
-                background: #fafbfc;
-            }
-            QHeaderView::section {
-                background: #334155; color: #ffffff; border: none;
-                padding: 6px 8px; font-weight: bold; font-size: 11px;
-            }
-            QTableWidget::item:selected {
-                background: #eef2ff;
-            }
-        """)
         class_layout.setContentsMargins(0, 0, 0, 0)
         class_layout.setSpacing(0)
         class_layout.addWidget(self.class_table)
@@ -876,7 +884,6 @@ class MainWindow(QMainWindow):
         left_w.setMinimumWidth(320)
         bottom.addWidget(left_w, 2)
 
-        # 右列：视频预览
         right_col = QVBoxLayout()
         card_video = CardWidget("视频预览")
         video_layout = QVBoxLayout(card_video)
@@ -897,137 +904,111 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        # 画布
         card_canvas = CardWidget("路口状态")
         canvas_layout = QVBoxLayout(card_canvas)
         self.canvas = IntersectionCanvas()
         canvas_layout.addWidget(self.canvas, 1)
         layout.addWidget(card_canvas, 1)
 
-        # 控制面板
         card_ctrl = CardWidget("交通灯状态")
         ctrl_layout = QVBoxLayout(card_ctrl)
         ctrl_layout.setSpacing(8)
 
-        # 交通灯指示
-        self.xl_indicator = TrafficLightIndicator("X 方向", C_BLUE)
-        self.yl_indicator = TrafficLightIndicator("Y 方向", C_ORANGE)
+        self.xl_indicator = TrafficLightIndicator("X 方向", "blue")
+        self.yl_indicator = TrafficLightIndicator("Y 方向", "orange")
         ctrl_layout.addWidget(self.xl_indicator)
         ctrl_layout.addWidget(self.yl_indicator)
 
-        # 阶段
         phase_row = QHBoxLayout()
         phase_lbl = QLabel("阶段:")
-        phase_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(phase_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         phase_row.addWidget(phase_lbl)
         self.phase_label = QLabel("--")
-        self.phase_label.setStyleSheet(f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
+        _ds(self.phase_label, lambda: f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
         phase_row.addWidget(self.phase_label)
         phase_row.addStretch()
         ctrl_layout.addLayout(phase_row)
 
-        # 倒计时
         timer_row = QHBoxLayout()
         timer_lbl = QLabel("倒计时")
-        timer_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(timer_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         timer_row.addWidget(timer_lbl)
         self.timer_text = QLabel("--")
-        self.timer_text.setStyleSheet(f"color: {C_GREEN.name()}; font-size: 14px; font-weight: bold;")
+        _ds(self.timer_text, lambda: f"color: {C_GREEN.name()}; font-size: 14px; font-weight: bold;")
         timer_row.addWidget(self.timer_text)
         timer_row.addStretch()
         ctrl_layout.addLayout(timer_row)
 
-        # 进度条
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(6)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar { background: #e5e7eb; border: none; border-radius: 3px; }
-            QProgressBar::chunk { background: #22c55e; border-radius: 3px; }
+        _ds(self.progress_bar, lambda: f"""
+            QProgressBar {{ background: {C_PROGRESS_BG}; border: none; border-radius: 3px; }}
+            QProgressBar::chunk {{ background: {C_PROGRESS_CHUNK}; border-radius: 3px; }}
         """)
         ctrl_layout.addWidget(self.progress_bar)
 
-        # 按钮
         btn_row = QHBoxLayout()
         self.btn_start_sim = QPushButton("▶ 开始")
         self.btn_start_sim.setFixedSize(90, 32)
-        self.btn_start_sim.setStyleSheet(self._btn_style(C_GREEN))
+        _ds(self.btn_start_sim, lambda: MainWindow._btn_style(C_GREEN))
         self.btn_start_sim.clicked.connect(self._on_start_sim)
         btn_row.addWidget(self.btn_start_sim)
 
         self.btn_pause_sim = QPushButton("⏸ 暂停")
         self.btn_pause_sim.setFixedSize(90, 32)
-        self.btn_pause_sim.setStyleSheet(self._btn_style(C_YELLOW))
+        _ds(self.btn_pause_sim, lambda: MainWindow._btn_style(C_YELLOW))
         self.btn_pause_sim.clicked.connect(self._on_pause_sim)
         btn_row.addWidget(self.btn_pause_sim)
 
         self.btn_reset_sim = QPushButton("■ 重置")
         self.btn_reset_sim.setFixedSize(90, 32)
-        self.btn_reset_sim.setStyleSheet(self._btn_style(C_RED))
+        _ds(self.btn_reset_sim, lambda: MainWindow._btn_style(C_RED))
         self.btn_reset_sim.clicked.connect(self._on_reset_sim)
         btn_row.addWidget(self.btn_reset_sim)
         ctrl_layout.addLayout(btn_row)
 
-        # 速度
         speed_lbl = QLabel("速度")
-        speed_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(speed_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         ctrl_layout.addWidget(speed_lbl)
         speed_row = QHBoxLayout()
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
         self.speed_slider.setRange(1, 20)
         self.speed_slider.setValue(5)
-        self.speed_slider.setStyleSheet("""
-            QSlider::groove:horizontal { background: #e5e7eb; height: 6px; border-radius: 3px; }
-            QSlider::handle:horizontal { background: #4f46e5; width: 14px; margin: -5px 0; border-radius: 7px; }
-        """)
         self.speed_slider.valueChanged.connect(lambda v: setattr(self, 'sim_speed', float(v)))
         speed_row.addWidget(self.speed_slider)
         self.speed_val = QLabel("5x")
-        self.speed_val.setStyleSheet(f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
+        _ds(self.speed_val, lambda: f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
         self.speed_slider.valueChanged.connect(lambda v: self.speed_val.setText(f"{v}x"))
         speed_row.addWidget(self.speed_val)
         ctrl_layout.addLayout(speed_row)
 
-        # 数据源
         ds_lbl = QLabel("数据源")
-        ds_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(ds_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         ctrl_layout.addWidget(ds_lbl)
         self.data_source_combo = QComboBox()
         self.data_source_combo.addItem("(默认)")
-        self.data_source_combo.setStyleSheet("""
-            QComboBox {
-                border: 1px solid #d1d5db; border-radius: 6px;
-                padding: 4px 8px; background: #f9fafb; font-size: 11px;
-            }
-        """)
+        self.data_source_combo.addItem("实时检测")
         ctrl_layout.addWidget(self.data_source_combo)
 
         ctrl_layout.addSpacing(4)
         line = QWidget()
         line.setFixedHeight(1)
-        line.setStyleSheet("background: #e2e5eb;")
+        _ds(line, lambda: f"background: {C_SIDEBAR_BORDER};")
         ctrl_layout.addWidget(line)
         ctrl_layout.addSpacing(4)
 
-        # 相位信息
         ci_lbl = QLabel("感应控制状态")
-        ci_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(ci_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         ctrl_layout.addWidget(ci_lbl)
         self.cycle_info = QTextEdit()
         self.cycle_info.setReadOnly(True)
         self.cycle_info.setFixedHeight(90)
         self.cycle_info.setPlaceholderText("点击 ▶ 开始")
-        self.cycle_info.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #e2e5eb; border-radius: 6px;
-                background: #f9fafb; font-size: 11px; padding: 4px;
-            }
-        """)
         ctrl_layout.addWidget(self.cycle_info)
 
-        # 周期历史
         hist_lbl = QLabel("切换记录")
-        hist_lbl.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(hist_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         ctrl_layout.addWidget(hist_lbl)
         self.history_table = QTableWidget(0, 3)
         self.history_table.setHorizontalHeaderLabels(["相位", "时长", "原因"])
@@ -1040,25 +1021,6 @@ class MainWindow(QMainWindow):
         self.history_table.verticalHeader().setVisible(False)
         self.history_table.verticalHeader().setDefaultSectionSize(32)
         self.history_table.setAlternatingRowColors(True)
-        self.history_table.setStyleSheet("""
-            QTableWidget {
-                border: none; border-radius: 6px;
-                background: #ffffff; font-size: 12px; gridline-color: transparent;
-            }
-            QTableWidget::item {
-                padding: 4px 8px; border-bottom: 1px solid #f3f4f6;
-            }
-            QTableWidget::item:alternate {
-                background: #fafbfc;
-            }
-            QHeaderView::section {
-                background: #334155; color: #ffffff; border: none;
-                padding: 6px 8px; font-weight: bold; font-size: 11px;
-            }
-            QTableWidget::item:selected {
-                background: #eef2ff;
-            }
-        """)
         ctrl_layout.addWidget(self.history_table, 1)
 
         ctrl_w = QWidget()
@@ -1087,6 +1049,7 @@ class MainWindow(QMainWindow):
         self.nav_yolo.clicked.connect(lambda: self._switch_page(0))
         self.nav_traffic.clicked.connect(lambda: self._switch_page(1))
         self.session_list.currentRowChanged.connect(self._on_session_select)
+        self.data_source_combo.currentTextChanged.connect(self._on_data_source_changed)
 
     def _switch_page(self, idx):
         self.stack.setCurrentIndex(idx)
@@ -1127,16 +1090,34 @@ class MainWindow(QMainWindow):
         self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
         self.btn_detect.setEnabled(False)
 
-        # 实时帧回调 —— 只存原始 BGR 帧（轻量），GUI 线程再转 QImage
-        self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0}
-        self._detect_dirty = False  # 是否有新帧待显示
+        # 实时模式下重置仿真状态以接收新检测数据
+        if self._sim_live_mode:
+            self.va_controller.reset()
+            video_fps = self._detect_latest.get("video_fps", 30.0) or 30.0
+            self.feature_extractor = FrameFeatures(fps=float(video_fps))
+            self.last_tick = time.time()
+            with self._live_frames_lock:
+                self._live_frames.clear()
+            self.sim_running = True
+            self.cycle_info.setPlaceholderText("等待检测数据...")
 
-        def on_detect_frame(frame_bgr, frame_idx, avg_fps, num_objects):
-            self._detect_latest["bgr"] = frame_bgr  # 只存引用，零拷贝
+        self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0, "video_fps": None}
+        self._detect_dirty = False
+
+        def on_detect_frame(frame_bgr, frame_idx, avg_fps, num_objects, detections=None, video_fps=None):
+            self._detect_latest["bgr"] = frame_bgr
             self._detect_latest["fps"] = avg_fps
             self._detect_latest["count"] = num_objects
             self._detect_latest["idx"] = frame_idx
             self._detect_dirty = True
+            if video_fps:
+                self._detect_latest["video_fps"] = video_fps
+            if detections:
+                with self._live_frames_lock:
+                    self._live_frames.append({
+                        "frame": frame_idx,
+                        "detections": detections,
+                    })
 
         def run_detect():
             orig = (cv2.imshow, cv2.waitKey, cv2.destroyAllWindows)
@@ -1165,7 +1146,7 @@ class MainWindow(QMainWindow):
             prog = self.detect_progress
             self.detect_progress = ""
             self.btn_detect.setEnabled(True)
-            self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0}
+            self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0, "video_fps": None}
             self._detect_dirty = False
             if prog.startswith("FAIL:"):
                 self.detect_status.setText(prog[5:])
@@ -1180,6 +1161,9 @@ class MainWindow(QMainWindow):
                 else:
                     self.detect_status.setText("检测完成，但视频无法播放")
                     self.detect_status.setStyleSheet(f"color: {C_ORANGE.name()}; font-size: 12px;")
+            # 标出检测结束但不停止仿真
+            if self._sim_live_mode:
+                self.cycle_info.setPlaceholderText("检测已结束，仿真继续")
             self._load_sessions()
 
     # ── 视频播放 ─────────────────────────────────────────
@@ -1213,7 +1197,6 @@ class MainWindow(QMainWindow):
         return True
 
     def _video_tick(self):
-        # 检测中：刷新实时检测帧（30fps）
         if self.detecting and self._detect_dirty:
             bgr = self._detect_latest["bgr"]
             if bgr is not None:
@@ -1229,7 +1212,6 @@ class MainWindow(QMainWindow):
             self._detect_dirty = False
             return
 
-        # 正常视频播放
         if not self.video_playing or not self.video_cap:
             return
         now = time.time()
@@ -1268,11 +1250,13 @@ class MainWindow(QMainWindow):
                 summary = load_json(d / "summary.json")
                 self.sessions.append({"name": d.name, "path": str(d), "summary": summary})
                 self.session_list.addItem(d.name)
-        # 更新数据源下拉
+        self.data_source_combo.blockSignals(True)
         self.data_source_combo.clear()
         self.data_source_combo.addItem("(默认)")
+        self.data_source_combo.addItem("实时检测")
         for s in self.sessions:
             self.data_source_combo.addItem(s["name"])
+        self.data_source_combo.blockSignals(False)
 
     def _on_session_context_menu(self, pos):
         item = self.session_list.itemAt(pos)
@@ -1282,11 +1266,6 @@ class MainWindow(QMainWindow):
         if row < 0 or row >= len(self.sessions):
             return
         menu = QMenu()
-        menu.setStyleSheet("""
-            QMenu { background: #fff; border: 1px solid #e2e5eb; border-radius: 6px; padding: 4px; }
-            QMenu::item { padding: 6px 20px; border-radius: 4px; font-size: 12px; }
-            QMenu::item:selected { background: #fee2e2; color: #dc2626; }
-        """)
         delete_action = menu.addAction("🗑  删除记录")
         action = menu.exec(self.session_list.mapToGlobal(pos))
         if action == delete_action:
@@ -1323,7 +1302,6 @@ class MainWindow(QMainWindow):
         frames = summary.get("total_frames", 0)
         fps_val = summary.get("avg_fps", 0)
         vi = summary.get("video_info", {})
-        # 优先使用去重统计（unique_class_counts），兼容旧数据
         unique_counts = summary.get("unique_class_counts", classes)
         vehicle_count = summary.get("unique_vehicle_count",
                                     sum(v for k, v in unique_counts.items() if k.lower() in VEHICLE_CLASSES))
@@ -1333,7 +1311,6 @@ class MainWindow(QMainWindow):
         self.stat_vehicles.set_value(str(vehicle_count))
         self.stat_fps.set_value(str(round(fps_val, 1)))
 
-        # 类别表格 — 使用去重统计
         self.class_table.setRowCount(0)
         unique_total = sum(unique_counts.values())
         for cls, count in sorted(unique_counts.items(), key=lambda x: -x[1]):
@@ -1342,27 +1319,24 @@ class MainWindow(QMainWindow):
             row_idx = self.class_table.rowCount()
             self.class_table.insertRow(row_idx)
 
-            # 类别名
             name_item = QTableWidgetItem(cls)
             name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             self.class_table.setItem(row_idx, 0, name_item)
 
-            # 数量
             count_item = QTableWidgetItem(str(count))
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             self.class_table.setItem(row_idx, 1, count_item)
 
-            # 占比 — 文字颜色编码
             pct_item = QTableWidgetItem(pct)
             pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
             if pct_val >= 50:
-                pct_item.setForeground(QBrush(QColor(22, 163, 74)))   # 绿
+                pct_item.setForeground(QBrush(QColor(22, 163, 74)))
             elif pct_val >= 20:
-                pct_item.setForeground(QBrush(QColor(37, 99, 235)))   # 蓝
+                pct_item.setForeground(QBrush(QColor(37, 99, 235)))
             elif pct_val >= 5:
-                pct_item.setForeground(QBrush(QColor(202, 138, 4)))   # 黄
+                pct_item.setForeground(QBrush(QColor(202, 138, 4)))
             else:
-                pct_item.setForeground(QBrush(QColor(107, 114, 128))) # 灰
+                pct_item.setForeground(QBrush(QColor(107, 114, 128)))
             self.class_table.setItem(row_idx, 2, pct_item)
 
         info = (
@@ -1375,10 +1349,58 @@ class MainWindow(QMainWindow):
 
     # ── 交通灯仿真 (Vehicle-Actuated) ────────────────────
 
+    def _on_data_source_changed(self, text):
+        """数据源切换：选"实时检测"时自动启停仿真。"""
+        if text == "实时检测":
+            self._start_live_sim()
+        elif self._sim_live_mode:
+            self._stop_live_sim()
+
+    def _start_live_sim(self):
+        """武装实时模式——等待视频检测开始后才真正启动仿真。"""
+        self._sim_live_mode = True
+        self.va_controller.reset()
+        self.feature_extractor = FrameFeatures(fps=30.0)
+        self.va_frame_index = 0
+        self.va_sim_time = 0.0
+        with self._live_frames_lock:
+            self._live_frames.clear()
+        # 不设 sim_running，等 _on_start_detect 触发
+        self.btn_start_sim.setEnabled(True)
+        self.btn_pause_sim.setEnabled(True)
+        self.speed_slider.setEnabled(False)
+        self.speed_val.setText("1x（实时）")
+        self.cycle_info.setPlaceholderText("等待视频检测开始...")
+
+    def _stop_live_sim(self):
+        """停止实时仿真并重置 UI。"""
+        self._sim_live_mode = False
+        self.sim_running = False
+        self.sim_paused = False
+        self.x_light = "off"
+        self.y_light = "off"
+        with self._live_frames_lock:
+            self._live_frames.clear()
+        self.canvas.update_state()
+        self.timer_text.setText("--")
+        self.progress_bar.setValue(0)
+        self.cycle_info.setText("已停止实时仿真")
+        self.cycle_info.setPlaceholderText("选择数据源后点击 ▶ 开始")
+        self.history_table.setRowCount(0)
+        self.speed_slider.setEnabled(True)
+        self.speed_val.setText(f"{int(self.sim_speed)}x")
+        self.btn_start_sim.setEnabled(True)
+        self.btn_pause_sim.setEnabled(True)
+        # 回退 combo 到默认，避免 UI 不一致
+        self.data_source_combo.blockSignals(True)
+        self.data_source_combo.setCurrentIndex(0)
+        self.data_source_combo.blockSignals(False)
+
     def _start_va_sim(self):
-        """初始化 VA 仿真：加载检测数据，创建特征提取器和控制器"""
+        """初始化离线回放仿真。"""
         sel = self.data_source_combo.currentText()
-        if sel and sel != "(默认)":
+        self._sim_live_mode = False
+        if sel and sel != "(默认)" and sel != "实时检测":
             session_dir = os.path.join(DATA_DIR, sel)
             self.va_frames, self.va_fps = load_frames(session_dir)
         else:
@@ -1391,6 +1413,12 @@ class MainWindow(QMainWindow):
         self.va_sim_time = 0.0
 
     def _on_start_sim(self):
+        # 实时模式：只处理暂停恢复
+        if self._sim_live_mode:
+            if self.sim_paused:
+                self.sim_paused = False
+                self.last_tick = time.time()
+            return
         if self.sim_running and not self.sim_paused:
             return
         if not self.sim_running:
@@ -1406,6 +1434,9 @@ class MainWindow(QMainWindow):
         self.sim_paused = True
 
     def _on_reset_sim(self):
+        if self._sim_live_mode:
+            self._stop_live_sim()
+            return
         self.sim_running = False
         self.sim_paused = False
         self.x_light = "off"
@@ -1421,17 +1452,52 @@ class MainWindow(QMainWindow):
     def _sim_tick(self):
         if not self.sim_running or self.sim_paused:
             return
+
+        # ── 实时检测模式 ──
+        if self._sim_live_mode:
+            # 1. 同步视频 FPS
+            vfps = self._detect_latest.get("video_fps")
+            if vfps:
+                self.feature_extractor.fps = float(vfps)
+
+            # 2. 新帧 → 更新特征提取器
+            with self._live_frames_lock:
+                frames = list(self._live_frames)
+                self._live_frames.clear()
+
+            for fd in frames:
+                self.va_features = self.feature_extractor.process_frame(fd)
+
+            # 2. 墙钟 dt 驱动控制器（实时模式固定 1x 速度）
+            now = time.time()
+            dt = now - self.last_tick
+            self.last_tick = now
+
+            feats = self.va_features or {
+                "queue_x": 0, "queue_y": 0,
+                "wait_x": 0.0, "wait_y": 0.0,
+                "gap_x": 0.0, "gap_y": 0.0,
+                "arrival_x": 0.0, "arrival_y": 0.0,
+            }
+
+            x_light, y_light, countdown = self.va_controller.step(
+                feats["queue_x"], feats["queue_y"],
+                feats["wait_x"], feats["wait_y"],
+                feats["gap_x"], feats["gap_y"],
+                dt,
+            )
+            self._update_sim_ui(x_light, y_light, countdown)
+            return
+
+        # ── 离线回放模式 ──
         now = time.time()
         dt = (now - self.last_tick) * self.sim_speed
         self.last_tick = now
 
         self.va_sim_time += dt
 
-        # ── 逐帧处理特征提取 ──
-        # dt 秒 × fps = 需要处理的帧数。每帧之间间隔 1/fps 秒，
-        # 保证位移计算正确。
         n_frames = max(1, int(dt * max(self.va_fps, 1.0)))
-        for _ in range(min(n_frames, 10)):  # 上限 10 帧/ tick，防止卡顿
+        for _ in range(min(n_frames, 10)):
             frame_idx = int(self.va_sim_time * self.va_fps)
             if self.va_frames:
                 frame_idx = frame_idx % len(self.va_frames)
@@ -1447,46 +1513,57 @@ class MainWindow(QMainWindow):
             "arrival_x": 0.0, "arrival_y": 0.0,
         }
 
-        # ── 控制器决策 ──
         x_light, y_light, countdown = self.va_controller.step(
             feats["queue_x"], feats["queue_y"],
             feats["wait_x"], feats["wait_y"],
             feats["gap_x"], feats["gap_y"],
             dt,
         )
+        self._update_sim_ui(x_light, y_light, countdown)
 
+    def _update_sim_ui(self, x_light, y_light, countdown):
+        """刷新仿真 UI 控件"""
         state = self.va_controller.get_state()
+        feats = self.va_features or {
+            "queue_x": 0, "queue_y": 0,
+            "wait_x": 0.0, "wait_y": 0.0,
+            "gap_x": 0.0, "gap_y": 0.0,
+            "arrival_x": 0.0, "arrival_y": 0.0,
+        }
+        is_yellow = state["in_yellow"]
+
         self.x_light = x_light
         self.y_light = y_light
-
-        # ── UI 更新 ──
-        is_yellow = state["in_yellow"]
 
         if countdown is not None:
             self.timer_text.setText(f"{math.ceil(countdown)}s")
 
-        # 进度条
         if is_yellow:
             yd = self.va_controller.yellow_duration
             self.progress_bar.setValue(
                 int(state["yellow_elapsed"] / yd * 100) if yd > 0 else 0
             )
+            self.progress_bar.setStyleSheet(f"""
+                QProgressBar {{ background: {C_PROGRESS_BG}; border: none; border-radius: 3px; }}
+                QProgressBar::chunk {{ background: {C_PROGRESS_CHUNK_YELLOW}; border-radius: 3px; }}
+            """)
         else:
             m = self.va_controller.max_green
             self.progress_bar.setValue(
                 int(state["phase_elapsed"] / m * 100) if m > 0 else 0
             )
+            self.progress_bar.setStyleSheet(f"""
+                QProgressBar {{ background: {C_PROGRESS_BG}; border: none; border-radius: 3px; }}
+                QProgressBar::chunk {{ background: {C_PROGRESS_CHUNK}; border-radius: 3px; }}
+            """)
 
-        # Canvas
         self.canvas.update_state(
             x_light, y_light, feats["queue_x"], feats["queue_y"], countdown
         )
 
-        # 指示灯
         self.xl_indicator.set_active(x_light)
         self.yl_indicator.set_active(y_light)
 
-        # 相位标签
         if is_yellow:
             self.phase_label.setText("黄灯过渡")
             self.phase_label.setStyleSheet(
@@ -1503,15 +1580,17 @@ class MainWindow(QMainWindow):
                 f"color: {C_ORANGE.name()}; font-size: 12px; font-weight: bold;"
             )
 
-        # 状态信息
+        mode_tag = "实时" if self._sim_live_mode else "VA"
         self.cycle_info.setText(
-            f"Vehicle-Actuated | 周期 #{state['cycle_num'] + 1}\n"
-            f"X排队:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
-            f"Y排队:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
-            f"绿灯已过:{state['phase_elapsed']:.1f}s  决策步={self.va_sim_time:.0f}s"
+            f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
+            f"X排队:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
+            f"清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
+            f"Y排队:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
+            f"清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
+            f"绿灯已过:{state['phase_elapsed']:.1f}s  "
+            f"标定:{'✓' if feats.get('calibrated') else '…'}"
         )
 
-        # 切换记录表格 (显示最近 20 条)
         history = self.va_controller.get_history()
         if history:
             self.history_table.setRowCount(0)
@@ -1522,34 +1601,28 @@ class MainWindow(QMainWindow):
                 self.history_table.setItem(0, 1, QTableWidgetItem(f"{rec.duration:.1f}s"))
                 self.history_table.setItem(0, 2, QTableWidgetItem(rec.reason))
 
-
 # ─── 主入口 ──────────────────────────────────────────────
 
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    # 全局字体
     font = QFont("Microsoft YaHei", 10)
     app.setFont(font)
 
-    # 全局样式
-    app.setStyleSheet("""
-        QMainWindow { background: #f0f2f5; }
-        QWidget { font-family: "Microsoft YaHei", "SimHei", sans-serif; }
-        QToolTip { background: #1f2937; color: white; border: none; border-radius: 4px; padding: 4px 8px; }
-        QScrollBar:vertical {
-            background: #f3f4f6; width: 8px; border-radius: 4px;
-        }
-        QScrollBar::handle:vertical {
-            background: #d1d5db; border-radius: 4px; min-height: 30px;
-        }
-        QScrollBar::handle:vertical:hover { background: #9ca3af; }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-    """)
+    # 安装主题管理器（跟随 Windows 系统主题）
+    tm.install(app)
+    app.setStyleSheet(_make_app_stylesheet())
 
     window = MainWindow()
     window.show()
+
+    # 系统主题变化时自动刷新
+    def _on_sys_theme_changed(dark: bool):
+        window.refresh_theme()
+
+    tm.on_theme_changed(_on_sys_theme_changed)
+
     sys.exit(app.exec())
 
 

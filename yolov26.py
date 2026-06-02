@@ -486,12 +486,11 @@ def detect_video(source=0, output_path=None, frame_callback=None):
             break
 
         # 跳帧检测：每隔SKIP_FRAMES-1帧检测一次
-        if frame_count % SKIP_FRAMES == 0:
-            # 检测当前帧
+        is_real_detection = (frame_count % SKIP_FRAMES == 0)
+        if is_real_detection:
             boxes, confidences, class_ids = process_frame(frame, detector)
             last_boxes, last_confidences, last_class_ids = boxes, confidences, class_ids
         else:
-            # 使用上一帧的检测结果
             boxes, confidences, class_ids = last_boxes, last_confidences, last_class_ids
 
         # 追踪器更新（去重统计）
@@ -553,9 +552,10 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         if writer:
             writer.write(result_frame)
 
-        # 实时回调
+        # 实时回调 — skipped frames 不传 detections 避免假排队
         if frame_callback:
-            frame_callback(result_frame, frame_count, avg_fps, len(boxes))
+            cb_dets = detections if is_real_detection else None
+            frame_callback(result_frame, frame_count, avg_fps, len(boxes), cb_dets, fps)
 
         # 按 'q' 退出
         if cv2.waitKey(1) & 0xFF == ord('q'):

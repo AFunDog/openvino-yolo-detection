@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike", "bicycle"}
+VEHICLE_CLASSES = {"car", "van", "bus", "truck"}
 
 # 预热帧数: 积累到此数量后执行方向标定
 WARMUP_FRAMES = 150
