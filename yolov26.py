@@ -132,7 +132,7 @@ class SimpleTracker:
                 new_tracks[tid] = {"box": box, "class_id": cls, "lost": 0}
                 track_ids[i] = tid
                 # 新目标计入去重统计
-                class_name = COCO_CLASSES[cls]
+                class_name = CLASS_NAMES[cls] if 0 <= cls < len(CLASS_NAMES) else f"class_{cls}"
                 self.unique_class_counts[class_name] = self.unique_class_counts.get(class_name, 0) + 1
 
         self.tracks = new_tracks
