@@ -59,6 +59,88 @@ CLASS_NAMES = ['others', 'car', 'van', 'bus']
 DATA_DIR = "data"
 
 
+# ─── IoU 追踪器（跨帧去重） ─────────────────────────────
+
+def _iou(box_a, box_b):
+    """计算两个框的 IoU"""
+    x1 = max(box_a[0], box_b[0])
+    y1 = max(box_a[1], box_b[1])
+    x2 = min(box_a[2], box_b[2])
+    y2 = min(box_a[3], box_b[3])
+    inter = max(0, x2 - x1) * max(0, y2 - y1)
+    area_a = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1])
+    area_b = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0
+
+
+class SimpleTracker:
+    """基于 IoU 的简易目标追踪器，用于跨帧去重统计"""
+
+    def __init__(self, iou_threshold=0.3, max_lost=5):
+        self.next_id = 1
+        self.tracks = {}        # track_id -> {"box": [...], "class_id": int, "lost": int}
+        self.iou_threshold = iou_threshold
+        self.max_lost = max_lost
+        self.unique_class_counts = {}  # 去重后的类别计数
+
+    def update(self, boxes, class_ids):
+        """更新追踪器，返回每帧每个检测的 track_id"""
+        matched_old = set()  # 已匹配的旧轨迹 id
+        matched_new = set()  # 已匹配的新检测索引
+
+        # 构建匹配关系：旧轨迹 ↔ 新检测
+        matches = []  # (track_id, new_idx)
+        for tid, trk in self.tracks.items():
+            best_iou = 0
+            best_idx = -1
+            for i, (box, cls) in enumerate(zip(boxes, class_ids)):
+                if i in matched_new or cls != trk["class_id"]:
+                    continue
+                iou_val = _iou(box, trk["box"])
+                if iou_val > best_iou:
+                    best_iou = iou_val
+                    best_idx = i
+            if best_idx >= 0 and best_iou >= self.iou_threshold:
+                matches.append((tid, best_idx))
+                matched_old.add(tid)
+                matched_new.add(best_idx)
+
+        # 构建新轨迹字典
+        new_tracks = {}
+
+        # 更新已匹配的轨迹
+        for tid, new_idx in matches:
+            new_tracks[tid] = {"box": boxes[new_idx], "class_id": class_ids[new_idx], "lost": 0}
+
+        # 保留短暂丢失的轨迹
+        for tid, trk in self.tracks.items():
+            if tid not in matched_old:
+                trk["lost"] += 1
+                if trk["lost"] <= self.max_lost:
+                    new_tracks[tid] = trk
+
+        # 未匹配的新检测 → 分配新 ID
+        track_ids = [0] * len(boxes)
+        for tid, new_idx in matches:
+            track_ids[new_idx] = tid
+
+        for i, (box, cls) in enumerate(zip(boxes, class_ids)):
+            if i not in matched_new:
+                tid = self.next_id
+                self.next_id += 1
+                new_tracks[tid] = {"box": box, "class_id": cls, "lost": 0}
+                track_ids[i] = tid
+                # 新目标计入去重统计
+                class_name = COCO_CLASSES[cls]
+                self.unique_class_counts[class_name] = self.unique_class_counts.get(class_name, 0) + 1
+
+        self.tracks = new_tracks
+        return track_ids
+
+
+# ─── 数据保存 ──────────────────────────────────────────
+
 def save_detection_data(source, frame_data, summary):
     """保存检测数据到 data 目录
 
@@ -328,7 +410,9 @@ def draw_detections(img, boxes, confidences, class_ids, classes):
     return img
 
 
-def detect_video(source=0, output_path=None):
+# ─── 视频检测 ──────────────────────────────────────────
+
+def detect_video(source=0, output_path=None, frame_callback=None):
     """
     视频检测函数
 
@@ -338,6 +422,8 @@ def detect_video(source=0, output_path=None):
             - "video.mp4" (视频文件路径)
             - "rtsp://..." (RTSP流地址)
         output_path: 输出视频保存路径，None则不保存
+        frame_callback: 每帧回调函数，签名为 callback(frame_bgr, frame_index, avg_fps, num_objects)
+                         frame_bgr 为 BGR 格式 numpy 数组
     """
     print("正在加载 YOLOv26 模型...")
     detector = load_detector()
@@ -372,6 +458,7 @@ def detect_video(source=0, output_path=None):
     last_boxes = []
     last_confidences = []
     last_class_ids = []
+    tracker = SimpleTracker()
     print("开始检测，按 'q' 退出...")
 
     while True:
@@ -391,6 +478,9 @@ def detect_video(source=0, output_path=None):
             # 使用上一帧的检测结果
             boxes, confidences, class_ids = last_boxes, last_confidences, last_class_ids
 
+        # 追踪器更新（去重统计）
+        track_ids = tracker.update(boxes, class_ids)
+
         # 记录检测数据
         detections = []
         for i, (box, conf, cls_id) in enumerate(zip(boxes, confidences, class_ids)):
@@ -402,6 +492,7 @@ def detect_video(source=0, output_path=None):
                 "y1": round(float(box[1]), 2),
                 "x2": round(float(box[2]), 2),
                 "y2": round(float(box[3]), 2),
+                "track_id": track_ids[i],
             }
             detections.append(det)
             class_name = get_class_name(cls_id)
@@ -424,8 +515,9 @@ def detect_video(source=0, output_path=None):
 
         # 计算FPS
         end_time = time.time()
-        fps = 1.0 / (end_time - start_time)
-        fps_list.append(fps)
+        elapsed = end_time - start_time
+        fps_val = 1.0 / elapsed if elapsed > 0 else 0.0
+        fps_list.append(fps_val)
         if len(fps_list) > 30:  # 保留最近30帧的FPS
             fps_list.pop(0)
         avg_fps = sum(fps_list) / len(fps_list)
@@ -444,6 +536,10 @@ def detect_video(source=0, output_path=None):
         # 保存
         if writer:
             writer.write(result_frame)
+
+        # 实时回调
+        if frame_callback:
+            frame_callback(result_frame, frame_count, avg_fps, len(boxes))
 
         # 按 'q' 退出
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -470,6 +566,11 @@ def detect_video(source=0, output_path=None):
         "avg_fps": round(final_avg_fps, 1),
         "total_detections": sum(f["num_objects"] for f in frame_data),
         "class_counts": class_counts,
+        "unique_class_counts": tracker.unique_class_counts,
+        "unique_vehicle_count": sum(
+            v for k, v in tracker.unique_class_counts.items()
+            if k.lower() in {"car", "truck", "bus", "motorcycle", "bicycle"}
+        ),
         "video_info": {"width": width, "height": height, "fps": fps},
         "model": detector["model_path"],
         "backend": detector["backend"],
@@ -478,6 +579,8 @@ def detect_video(source=0, output_path=None):
     }
     save_detection_data(source, frame_data, summary)
 
+
+# ─── 图片检测 ──────────────────────────────────────────
 
 def detect_image(image_path, output_path="test/output/result_yolov26.png"):
     """
