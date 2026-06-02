@@ -1,9 +1,13 @@
 """
 YOLOv26 实现代码
-使用 OpenVINO 进行目标检测
+默认使用 ONNX Runtime 加载导出的 best.onnx，
+同时保留 OpenVINO IR 作为备用后端。
 """
 
+from pathlib import Path
+
 import openvino as ov
+import onnxruntime as ort
 import cv2
 import numpy as np
 import os
@@ -12,9 +16,15 @@ import json
 import csv
 from datetime import datetime
 
+BASE_DIR = Path(__file__).resolve().parent
+
 # ==================== 模型参数配置 ====================
 # 模型文件路径
-MODEL_XML_PATH = "public/yolo-v26/ir_model/yolo26n.xml"
+MODEL_ONNX_PATH = str(BASE_DIR / "public" / "yolo-v26" / "yolo26n.onnx")
+MODEL_XML_PATH = str(BASE_DIR / "public" / "yolo-v26" / "ir_model" / "yolo26n.xml")
+
+# 默认优先使用 ONNX 模型
+MODEL_BACKEND = "onnxruntime"
 
 # 设备选择: "CPU", "GPU", "NPU" 等
 # 如果有独立显卡，改为 "GPU" 可显著提升速度
@@ -41,21 +51,8 @@ DISPLAY_BOX_THICKNESS = 2
 DISPLAY_BOX_COLOR = (0, 255, 0)
 DISPLAY_TEXT_COLOR = (0, 0, 0)
 
-# COCO 类别标签 (80类)
-COCO_CLASSES = [
-    'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
-    'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench',
-    'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
-    'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-    'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
-    'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
-    'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
-    'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-    'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
-    'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
-    'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
-    'toothbrush'
-]
+# UA-DETRAC 类别标签
+CLASS_NAMES = ['others', 'car', 'van', 'bus']
 
 
 # 数据记录目录
@@ -104,9 +101,6 @@ def save_detection_data(source, frame_data, summary):
     print(f"  - summary.json (统计汇总)")
 
 
-
-
-
 def convert_boxes(x):
     """将中心点坐标 (cx, cy, w, h) 转换为 (x1, y1, x2, y2)"""
     y = np.copy(x)
@@ -145,6 +139,12 @@ def dist2bbox(distance_points, anchor_points):
     return np.concatenate([x1y1, x2y2], axis=-1)
 
 
+def get_class_name(class_id):
+    if 0 <= class_id < len(CLASS_NAMES):
+        return CLASS_NAMES[class_id]
+    return f"class_{class_id}"
+
+
 def decode_yolov26_output(output, img_width, img_height):
     """
     解码 YOLOv26 输出
@@ -152,6 +152,9 @@ def decode_yolov26_output(output, img_width, img_height):
     YOLOv26 输出格式: (batch, 300, 6)
     每个候选框: [x1, y1, x2, y2, conf, class_id]
     """
+    output = np.asarray(output)
+    if output.ndim == 2:
+        output = np.expand_dims(output, axis=0)
     print(f"输出shape: {output.shape}")
 
     batch, num_boxes, num_values = output.shape
@@ -191,32 +194,85 @@ def decode_yolov26_output(output, img_width, img_height):
     return boxes, confidences, class_ids
 
 
-def process_frame(frame, compiled_model, outputs):
+def load_detector():
+    """
+    优先加载 ONNX Runtime 模型；如果不可用则回退 OpenVINO IR。
+    返回一个统一的 detector 字典供后续推理调用。
+    """
+    if MODEL_BACKEND in ("auto", "onnxruntime") and os.path.exists(MODEL_ONNX_PATH):
+        try:
+            session = ort.InferenceSession(MODEL_ONNX_PATH, providers=["CPUExecutionProvider"])
+            input_name = session.get_inputs()[0].name
+            output_names = [item.name for item in session.get_outputs()]
+            return {
+                "backend": "onnxruntime",
+                "model_path": MODEL_ONNX_PATH,
+                "session": session,
+                "input_name": input_name,
+                "output_names": output_names,
+            }
+        except Exception as exc:
+            print(f"ONNX Runtime 加载失败，回退 OpenVINO: {exc}")
+
+    core = ov.Core()
+    model = core.read_model(MODEL_XML_PATH)
+    model.reshape({model.input().any_name: (1, 3, INPUT_SIZE, INPUT_SIZE)})
+
+    config = {}
+    if DEVICE == "CPU":
+        config = {
+            "PERFORMANCE_HINT": "LATENCY",
+            "NUM_STREAMS": "1",
+            "AFFINITY": "CORE",
+        }
+
+    compiled_model = core.compile_model(model, DEVICE, config)
+    return {
+        "backend": "openvino",
+        "model_path": MODEL_XML_PATH,
+        "compiled_model": compiled_model,
+        "outputs": compiled_model.outputs,
+        "device": DEVICE,
+    }
+
+
+def preprocess_frame(frame, backend):
+    """根据后端准备输入张量。"""
+    img_resized = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
+    if backend == "onnxruntime":
+        img_resized = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+
+    img_input = img_resized.astype(np.float32) / 255.0
+    img_input = np.transpose(img_input, (2, 0, 1))
+    img_input = np.expand_dims(img_input, axis=0)
+    return img_input
+
+
+def run_detector(detector, img_input):
+    """执行一次推理并统一返回输出张量列表。"""
+    backend = detector["backend"]
+    if backend == "onnxruntime":
+        return detector["session"].run(detector["output_names"], {detector["input_name"]: img_input})
+
+    results = detector["compiled_model"]([img_input])
+    return [results[output] for output in detector["outputs"]]
+
+
+def process_frame(frame, detector):
     """
     处理单帧图像进行检测
     """
     orig_h, orig_w = frame.shape[:2]
 
-    # 预处理
-    img_resized = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
-
-    # 归一化 (0-255 -> 0-1)
-    img_input = img_resized.astype(np.float32) / 255.0
-
-    # HWC -> CHW 并添加batch维度
-    img_input = np.transpose(img_input, (2, 0, 1))
-    img_input = np.expand_dims(img_input, axis=0)
-
-    # 推理
-    results = compiled_model([img_input])
+    img_input = preprocess_frame(frame, detector["backend"])
+    results = run_detector(detector, img_input)
 
     # 解码输出
     all_boxes = []
     all_confidences = []
     all_class_ids = []
 
-    for output in outputs:
-        out_data = results[output]
+    for out_data in results:
         boxes, confidences, class_ids = decode_yolov26_output(
             out_data, INPUT_SIZE, INPUT_SIZE
         )
@@ -254,7 +310,8 @@ def draw_detections(img, boxes, confidences, class_ids, classes):
         cv2.rectangle(img, (x1, y1), (x2, y2), DISPLAY_BOX_COLOR, DISPLAY_BOX_THICKNESS)
 
         # 绘制标签
-        label = f"{classes[class_ids[i]]}: {confidences[i]:.2f}"
+        class_name = classes[class_ids[i]] if 0 <= class_ids[i] < len(classes) else f"class_{class_ids[i]}"
+        label = f"{class_name}: {confidences[i]:.2f}"
         (label_w, label_h), _ = cv2.getTextSize(
             label, DISPLAY_LABEL_FONT, DISPLAY_LABEL_SCALE, DISPLAY_LABEL_THICKNESS
         )
@@ -283,26 +340,11 @@ def detect_video(source=0, output_path=None):
         output_path: 输出视频保存路径，None则不保存
     """
     print("正在加载 YOLOv26 模型...")
-    core = ov.Core()
-
-    # 设置输入shape为固定值
-    model = core.read_model(MODEL_XML_PATH)
-    model.reshape({model.input().any_name: (1, 3, INPUT_SIZE, INPUT_SIZE)})
-
-    # 性能优化配置
-    config = {}
-
-    if DEVICE == "CPU":
-        # CPU优化设置
-        config = {
-            "PERFORMANCE_HINT": "LATENCY",  # 低延迟模式
-            "NUM_STREAMS": "1",  # 单流处理
-            "AFFINITY": "CORE"  # 绑定到物理核心
-        }
-
-    compiled_model = core.compile_model(model, DEVICE, config)
-    outputs = compiled_model.outputs
-    print(f"模型加载完成! 设备: {DEVICE}, 输出节点数: {len(outputs)}")
+    detector = load_detector()
+    if detector["backend"] == "onnxruntime":
+        print(f"模型加载完成! 后端: ONNX Runtime, 输出节点数: {len(detector['output_names'])}")
+    else:
+        print(f"模型加载完成! 后端: OpenVINO, 设备: {detector['device']}, 输出节点数: {len(detector['outputs'])}")
     print(f"输入尺寸: {INPUT_SIZE}x{INPUT_SIZE}, 跳帧: {SKIP_FRAMES}")
 
     # 打开视频源
@@ -319,7 +361,7 @@ def detect_video(source=0, output_path=None):
     # 视频写入器
     writer = None
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
@@ -343,7 +385,7 @@ def detect_video(source=0, output_path=None):
         # 跳帧检测：每隔SKIP_FRAMES-1帧检测一次
         if frame_count % SKIP_FRAMES == 0:
             # 检测当前帧
-            boxes, confidences, class_ids = process_frame(frame, compiled_model, outputs)
+            boxes, confidences, class_ids = process_frame(frame, detector)
             last_boxes, last_confidences, last_class_ids = boxes, confidences, class_ids
         else:
             # 使用上一帧的检测结果
@@ -353,7 +395,7 @@ def detect_video(source=0, output_path=None):
         detections = []
         for i, (box, conf, cls_id) in enumerate(zip(boxes, confidences, class_ids)):
             det = {
-                "class": COCO_CLASSES[cls_id],
+                "class": get_class_name(cls_id),
                 "class_id": int(cls_id),
                 "confidence": round(float(conf), 4),
                 "x1": round(float(box[0]), 2),
@@ -362,7 +404,7 @@ def detect_video(source=0, output_path=None):
                 "y2": round(float(box[3]), 2),
             }
             detections.append(det)
-            class_name = COCO_CLASSES[cls_id]
+            class_name = get_class_name(cls_id)
             class_counts[class_name] = class_counts.get(class_name, 0) + 1
 
         frame_data.append({
@@ -375,7 +417,7 @@ def detect_video(source=0, output_path=None):
         # 绘制结果
         if boxes:
             result_frame = draw_detections(
-                frame.copy(), boxes, confidences, class_ids, COCO_CLASSES
+                frame.copy(), boxes, confidences, class_ids, CLASS_NAMES
             )
         else:
             result_frame = frame
@@ -429,7 +471,8 @@ def detect_video(source=0, output_path=None):
         "total_detections": sum(f["num_objects"] for f in frame_data),
         "class_counts": class_counts,
         "video_info": {"width": width, "height": height, "fps": fps},
-        "model": MODEL_XML_PATH,
+        "model": detector["model_path"],
+        "backend": detector["backend"],
         "confidence_threshold": CONF_THRESHOLD,
         "iou_threshold": IOU_THRESHOLD,
     }
@@ -445,26 +488,11 @@ def detect_image(image_path, output_path="test/output/result_yolov26.png"):
         output_path: 输出图片保存路径
     """
     print("正在加载 YOLOv26 模型...")
-    core = ov.Core()
-
-    # 设置输入shape为固定值
-    model = core.read_model(MODEL_XML_PATH)
-    model.reshape({model.input().any_name: (1, 3, INPUT_SIZE, INPUT_SIZE)})
-
-    # 性能优化配置
-    config = {}
-
-    if DEVICE == "CPU":
-        # CPU优化设置
-        config = {
-            "PERFORMANCE_HINT": "LATENCY",  # 低延迟模式
-            "NUM_STREAMS": "1",  # 单流处理
-            "AFFINITY": "CORE"  # 绑定到物理核心
-        }
-
-    compiled_model = core.compile_model(model, DEVICE, config)
-    outputs = compiled_model.outputs
-    print(f"模型加载完成! 设备: {DEVICE}, 输出节点数: {len(outputs)}")
+    detector = load_detector()
+    if detector["backend"] == "onnxruntime":
+        print(f"模型加载完成! 后端: ONNX Runtime, 输出节点数: {len(detector['output_names'])}")
+    else:
+        print(f"模型加载完成! 后端: OpenVINO, 设备: {detector['device']}, 输出节点数: {len(detector['outputs'])}")
     print(f"输入尺寸: {INPUT_SIZE}x{INPUT_SIZE}, 跳帧: {SKIP_FRAMES}")
 
     # 读取图片
@@ -475,13 +503,13 @@ def detect_image(image_path, output_path="test/output/result_yolov26.png"):
     print(f"正在检测图片: {image_path}")
 
     # 检测
-    boxes, confidences, class_ids = process_frame(img, compiled_model, outputs)
+    boxes, confidences, class_ids = process_frame(img, detector)
 
     # 绘制结果
     if boxes:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         result_img = draw_detections(
-            img.copy(), boxes, confidences, class_ids, COCO_CLASSES
+            img.copy(), boxes, confidences, class_ids, CLASS_NAMES
         )
         cv2.imwrite(output_path, result_img)
         cv2.imshow("YOLOv26 Detection", result_img)
@@ -489,7 +517,7 @@ def detect_image(image_path, output_path="test/output/result_yolov26.png"):
         cv2.destroyAllWindows()
         print(f"检测到 {len(boxes)} 个目标:")
         for i, (box, conf, cls_id) in enumerate(zip(boxes, confidences, class_ids)):
-            print(f"  {i+1}. {COCO_CLASSES[cls_id]}: {conf:.2f}, 位置: {box}")
+            print(f"  {i+1}. {get_class_name(cls_id)}: {conf:.2f}, 位置: {box}")
         print(f"结果已保存到: {output_path}")
 
         # 保存检测数据
@@ -497,7 +525,7 @@ def detect_image(image_path, output_path="test/output/result_yolov26.png"):
         class_counts = {}
         for box, conf, cls_id in zip(boxes, confidences, class_ids):
             detections.append({
-                "class": COCO_CLASSES[cls_id],
+                "class": get_class_name(cls_id),
                 "class_id": int(cls_id),
                 "confidence": round(float(conf), 4),
                 "x1": round(float(box[0]), 2),
@@ -505,7 +533,7 @@ def detect_image(image_path, output_path="test/output/result_yolov26.png"):
                 "x2": round(float(box[2]), 2),
                 "y2": round(float(box[3]), 2),
             })
-            class_name = COCO_CLASSES[cls_id]
+            class_name = get_class_name(cls_id)
             class_counts[class_name] = class_counts.get(class_name, 0) + 1
 
         frame_data = [{
@@ -519,7 +547,8 @@ def detect_image(image_path, output_path="test/output/result_yolov26.png"):
             "type": "image",
             "total_detections": len(detections),
             "class_counts": class_counts,
-            "model": MODEL_XML_PATH,
+            "model": detector["model_path"],
+            "backend": detector["backend"],
             "confidence_threshold": CONF_THRESHOLD,
         }
         save_detection_data(image_path, frame_data, summary)

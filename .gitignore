@@ -67,3 +67,5 @@ test/
 *.temp
 
 video*.mp4
+
+runs/
