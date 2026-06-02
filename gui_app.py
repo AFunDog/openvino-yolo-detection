@@ -338,6 +338,26 @@ class IntersectionCanvas(QWidget):
             p.drawText(QRectF(cx - cfs, cy - cfs, cfs * 2, cfs * 2), Qt.AlignmentFlag.AlignCenter,
                        str(math.ceil(self.countdown)))
 
+        # ── X/Y 路标注（放在各自路段中间） ──
+        label_fs = max(12, int(W * 0.03))
+        label_font = QFont("Microsoft YaHei", label_fs, QFont.Weight.Bold)
+        p.setFont(label_font)
+        lbl_w = label_fs * 3.0
+        lbl_h = label_fs * 1.6
+
+        # X 路 — 左侧水平路段正中
+        xr = QRectF(cx / 2 - road_w / 4 - lbl_w / 2, cy - lbl_h / 2, lbl_w, lbl_h)
+        p.setBrush(QBrush(QColor(0, 0, 0, 90)))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(xr, 4, 4)
+        p.setPen(QPen(QColor(255, 255, 255, 220)))
+        p.drawText(xr, Qt.AlignmentFlag.AlignCenter, "X 路")
+
+        # Y 路 — 上方垂直路段正中
+        yr = QRectF(cx - lbl_w / 2, cy / 2 - road_w / 4 - lbl_h / 2, lbl_w, lbl_h)
+        p.drawRoundedRect(yr, 4, 4)
+        p.drawText(yr, Qt.AlignmentFlag.AlignCenter, "Y 路")
+
         p.end()
 
     def _draw_arrow(self, p, x, y, direction, W):

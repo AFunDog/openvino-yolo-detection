@@ -1,16 +1,17 @@
 # YOLO 智能交通灯控制系统
 
-基于 YOLOv26 目标检测与 Vehicle-Actuated 感应控制的智能交通灯系统。从检测帧的 track 位移中自动标定道路方向、识别排队车辆，实时驱动红绿灯配时。
+基于 YOLOv26 目标检测与 Vehicle-Actuated 感应控制的智能交通灯系统。自动标定道路方向，从实时检测帧中识别排队车辆，动态驱动红绿灯配时。
 
 ## 功能
 
-- **目标检测**：支持图片、视频、摄像头、RTSP 流的 OpenVINO YOLOv26 实时检测
-- **批量图片检测**：支持将连续图像序列转为训练用检测数据
-- **数据记录**：逐帧保存检测框、类别、置信度、track_id 到 JSON/CSV
-- **自动方向标定**：从车辆运动方向自动发现道路方向，无需人工标定
-- **排队/通行分类**：基于 track 帧间位移判停排队与通行车辆
-- **Vehicle-Actuated 控制**：根据实时排队特征动态决策绿灯切换时机
-- **桌面 GUI**：PyQt6 可视化界面，十字路口动画、视频预览、实时状态监控
+- **目标检测**：支持图片、视频、摄像头、RTSP 流的 YOLOv26 实时检测（ONNX Runtime / OpenVINO 双后端）
+- **数据记录**：逐帧保存检测框、类别、置信度、track_id 到 `data/` 目录（JSON + CSV）
+- **自动方向标定**：从车辆 track 位移向量自动发现两条主方向（角度直方图 + 峰值聚类），任意摄像机角度自适应
+- **排队/通行分类**：基于 track 帧间中心点 EMA 速度判停排队车辆，聚合 X/Y 路排队数、等待时间、清空间隔、到达率
+- **Vehicle-Actuated 控制**：清空检测 + 最大/最小绿灯约束 + 等待加权，动态切换红绿灯
+- **实时联动仿真**：检测视频的同时，交通灯仿真自动跟随检测结果运行（墙钟同步，无需等待检测结束）
+- **桌面 GUI**：PyQt6 可视化界面，十字路口动画、视频预览、实时状态监控、类别统计
+- **Windows 明暗主题自适应**：颜色随系统主题自动切换（QPalette + 自定义调色板）
 - **控制台模拟**：终端按时间线回放交通灯周期
 - **树莓派控制**：GPIO 驱动实体 LED 交通灯
 
@@ -22,23 +23,62 @@
 uv sync
 ```
 
-### 运行检测 → 生成数据
-
-```bash
-# 视频检测
-python yolov26.py video test/input/traffic.mp4 test/output/output.mp4
-
-# 图片序列检测（连续路口拍摄的图片）
-python yolov26.py images test/input/intersection1 25
-```
-
-### 运行 GUI 仿真
+### 运行 GUI
 
 ```bash
 python gui_app.py
 ```
 
-进入「交通灯仿真」页面，选择检测数据源，点击「开始」启动控制。
+#### 离线回放
+1. 先在「YOLO 视频分析」页检测一段视频，生成检测数据
+2. 切换到「交通灯仿真」页，数据源选择检测记录，点击「▶ 开始」
+
+#### 实时联动
+1. 「交通灯仿真」页 → 数据源选 **"实时检测"**
+2. 切换到「YOLO 视频分析」页 → 选视频 → 点「开始检测」
+3. 仿真自动启动，交通灯随检测结果实时切换
+
+### 命令行检测
+
+```bash
+# 视频检测
+python yolov26.py video test/input/traffic.mp4 test/output/output.mp4
+
+# 摄像头
+python yolov26.py camera 0 test/output/output.mp4
+
+# 图片检测
+python yolov26.py image test/input/input.png test/output/output.png
+```
+
+## 项目结构
+
+```
+├── algorithm/
+│   ├── __init__.py              # 算法模块入口
+│   ├── data_extractor.py        # 方向标定、排队分类、特征提取
+│   └── va_controller.py         # Vehicle-Actuated 控制器
+├── gui_app.py                   # PyQt6 桌面应用
+├── theme_manager.py             # 主题管理器（明暗调色板 + QPalette）
+├── yolov26.py                   # YOLOv26 检测（ONNX Runtime / OpenVINO）
+├── main.py                      # YOLOv3-tiny 检测
+├── traffic_light_console.py     # 控制台交通灯模拟
+├── traffic_light_raspberry.py   # 树莓派 GPIO 控制
+├── data/
+│   ├── detection_*/             # 检测会话（自动生成）
+│   │   ├── frames.json          # 逐帧检测数据
+│   │   ├── frames.csv           # 表格检测数据
+│   │   └── summary.json         # 统计汇总（类别计数、FPS、视频信息）
+│   └── models/
+├── public/
+│   └── yolo-v26/                # YOLOv26 模型（ONNX + OpenVINO IR）
+├── scripts/
+│   ├── downloader.ps1           # 模型下载
+│   └── converter.ps1            # 模型转换
+└── test/
+    ├── input/                   # 测试输入
+    └── output/                  # 检测输出
+```
 
 ## Vehicle-Actuated 控制原理
 
@@ -47,34 +87,35 @@ python gui_app.py
 ```
 YOLO 检测帧
     │
-    ├── 1. 方向自动标定
-    │      收集长 track 的位移向量 → 角度直方图 → 找两个峰值方向
-    │      → X路方向向量 / Y路方向向量（任意摄像头角度自适应）
+    ├── 1. 方向自动标定（预热 150 帧后执行）
+    │      收集所有长 track (>15 帧, 位移 >30px) 的总位移向量
+    │      → 角度直方图 (36 bins, 0°–180°) → 平滑 → 找两个最高峰 (≥30° 间隔)
+    │      → 更接近水平 (0°/180°) 的为 X 路，另一个为 Y 路
+    │      → 不正交时用 X+90° 修正 Y
     │
     ├── 2. 每车方向分类
-    │      track 位移向量 · X方向向量 vs Y方向向量 → 归入 X 或 Y
+    │      track 总位移 · X方向向量 vs Y方向向量（点积取绝对值）
+    │      → sim_x > sim_y 且 > 0.5 → X 路，反之 → Y 路
+    │      标定前：|dx| > 2|dy| 临时归 X，|dy| > 2|dx| 临时归 Y
+    │      标定后：_reclassify_all_tracks() 重新分类所有已有 track
     │
     ├── 3. 排队判定
-    │      同 track 帧间中心点 EMA 速度 < 2px/帧 → 排队
+    │      同 track 帧间中心点位移 → EMA 平滑速度 (α=0.3)
+    │      速度 < 2 px/帧 连续 2+ 帧 → queued = True
+    │      每帧排队 +1/fps 秒累计等待时间
     │
     ├── 4. 特征聚合（每帧）
-    │      queue_x = Σ 排队_X路车      wait_x = Σ 排队时间
-    │      gap_x   = 连续无排队秒数     arrival_x = 新track到达率
+    │      queue_x  = Σ 排队_X路车辆      wait_x  = Σ 排队_X路等待时间
+    │      gap_x    = 连续无排队 X 秒数    arrival_x = 新 track 到达率 (EMA α=0.1)
+    │      queue_y  = Σ 排队_Y路车辆      wait_y  = Σ 排队_Y路等待时间
+    │      gap_y    = 连续无排队 Y 秒数    arrival_y = 新 track 到达率
     │
     └── 5. 控制器决策
-          当前路已清空 → 切换
-          当前路绿灯 ≥ 30s → 强制切换
-          对方等待 > 己方 × 1.2 → 切换
+          当前路绿灯 < 10s   → 保持（最小绿灯约束）
+          当前路 gap ≥ 3s    → 切换（已清空）
+          当前路绿灯 ≥ 30s   → 切换（最大绿灯约束）
+          对方等待 > 己方×1.2 → 切换（等待加权）
 ```
-
-### 决策逻辑
-
-| 优先级 | 条件 | 动作 | 说明 |
-|--------|------|------|------|
-| 1 | 绿灯 < 10s | KEEP | 最小绿灯安全约束 |
-| 2 | 当前路连续无排队 > 3s | SWITCH | 清空检测 |
-| 3 | 绿灯 ≥ 30s | SWITCH | 最大绿灯约束 |
-| 4 | 对方等待 > 己方 × 1.2 且己方无排队 | SWITCH | 等待加权 |
 
 ### 控制器参数
 
@@ -87,59 +128,53 @@ YOLO 检测帧
 | gap_seconds | 3s | 连续无车判定为"已清空" |
 | wait_ratio | 1.2 | 对方等待超过当前倍数则触发切换 |
 
-## 项目结构
+## 实时联动架构
 
 ```
-├── algorithm/
-│   ├── __init__.py              # 算法模块入口
-│   ├── data_extractor.py        # YOLO → 交通特征提取（方向标定、排队分类、等待时间）
-│   └── va_controller.py         # Vehicle-Actuated 感应控制器
-├── gui_app.py                   # PyQt6 桌面应用
-├── yolov26.py                   # YOLOv26 检测脚本（含批量图片检测）
-├── main.py                      # YOLOv3-tiny 检测脚本
-├── traffic_light_console.py     # 控制台交通灯模拟
-├── traffic_light_raspberry.py   # 树莓派 GPIO 控制
-├── data/
-│   ├── detection_*/             # 检测会话（自动生成）
-│   │   ├── frames.json          # 帧级检测数据
-│   │   └── summary.json         # 统计汇总
-│   └── models/                  # 模型文件
-├── public/
-│   ├── yolo-v26/                # YOLOv26 OpenVINO IR 模型
-│   └── yolo-v3-tiny-tf/         # YOLOv3-tiny 模型
-├── scripts/
-│   ├── downloader.ps1           # 模型下载脚本
-│   └── converter.ps1            # 模型转换脚本
-└── test/
-    ├── input/                   # 测试输入视频/图片
-    └── output/                  # 检测输出视频
+YOLO 检测线程                        GUI 主线程
+─────────────                       ──────────
+detect_video() 循环                 _sim_tick() 每 33ms
+  │                                  │
+  ├── process_frame()                ├── drain _live_frames (deque, 线程安全)
+  ├── tracker.update()               ├── feature_extractor.process_frame() → 排队/方向
+  ├── 构建 detections 列表            ├── va_controller.step(dt) → 红绿灯决策
+  └── frame_callback(                └── _update_sim_ui() → Canvas + 指示灯 + 表格
+        ..., detections, video_fps)
+         │                                   │
+         ▼                                   │
+    _live_frames.append({...})  ─────────────┘
 ```
 
-## GUI 功能说明
+关键设计：
+- 跳帧帧（SKIP_FRAMES=2 的非检测帧）不传入 `detections`，避免假排队
+- 仿真用墙钟 `dt` 驱动（实时固定 1x），检测结束仿真继续运行
+- 视频真实 FPS 自动同步到特征提取器
+
+## GUI 功能
 
 ### YOLO 视频分析
 
-- 输入视频路径或浏览选择文件，一键启动 YOLOv26 检测
+- 输入视频路径或浏览选择，一键启动检测
 - 检测中实时显示帧画面、FPS、目标数
-- 检测完成后自动播放输出视频（支持播放/暂停）
-- 左侧查看 `data/` 目录下所有检测会话，支持删除
-- 统计卡片：总帧数、检测数、车辆数、FPS
+- 检测完成后自动播放输出视频
+- 左侧查看所有检测会话，支持删除
+- 统计卡片：帧数 / 检测数 / 车辆数 / FPS
 - 类别分布表：各类目标数量与占比
 
 ### 交通灯仿真
 
-- 俯视十字路口 Canvas 动画（QPainter 绘制，支持缩放）
+- 俯视十字路口 Canvas（QPainter 绘制，X/Y 路标注）
 - 交通灯实时切换（红/黄/绿 + 发光效果）
-- **Vehicle-Actuated 感应控制**：从检测数据中实时提取排队特征，驱动相位切换
-- 车辆数分区显示（X路横向 / Y路纵向）
-- 倒计时 + 进度条、速度调节（1x ~ 20x）
+- 数据源支持：历史检测记录回放 / 实时联动
+- 排队车辆动画显示、倒计时 + 进度条
 - 切换记录表格：每次相位切换的时长和原因
+- 离线回放支持速度调节（1x~20x），实时模式固定 1x
 
 ## 技术栈
 
 - Python 3.10+
-- OpenVINO（YOLOv26 模型推理）
+- OpenVINO / ONNX Runtime（YOLOv26 推理）
 - OpenCV（图像处理）
-- PyQt6（桌面 GUI）
+- PyQt6（桌面 GUI + Windows 明暗主题）
 - NumPy
 - RPi.GPIO（树莓派控制，可选）
