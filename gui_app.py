@@ -13,6 +13,7 @@ import threading
 import sys
 from collections import deque
 from pathlib import Path
+from datetime import datetime
 
 import numpy as np
 import cv2
@@ -674,7 +675,6 @@ class MainWindow(QMainWindow):
         self.last_tick = 0
         self.detecting = False
         self.detect_progress = None
-        self.selected_video_paths = []
 
         # Vehicle-Actuated 控制器
         self.va_controller = VAController()
@@ -684,6 +684,9 @@ class MainWindow(QMainWindow):
         self.va_frame_index = 0
         self.va_sim_time = 0.0
         self.va_features = None
+        self.va_pair_summary = None
+        self.va_pair_wait_x = 0.0
+        self.va_pair_wait_y = 0.0
 
         # 视频播放器
         self.video_cap = None
@@ -816,30 +819,57 @@ class MainWindow(QMainWindow):
         card_upload = CardWidget("YOLOv26 视频检测")
         upload_layout = QVBoxLayout(card_upload)
         upload_layout.setSpacing(6)
-        row = QHBoxLayout()
-        self.video_path_input = QTextEdit()
-        self.video_path_input.setPlaceholderText("每行一个入口监控视频路径，至少 2 个...")
-        self.video_path_input.setFixedHeight(72)
-        _ds(self.video_path_input, lambda: f"""
-            QTextEdit {{
+        row = QVBoxLayout()
+        row.setSpacing(6)
+
+        x_row = QHBoxLayout()
+        x_lbl = QLabel("X方向视频")
+        _ds(x_lbl, lambda: f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px;")
+        x_row.addWidget(x_lbl)
+        self.video_path_x_input = QLineEdit()
+        self.video_path_x_input.setPlaceholderText("上传同一路口 X 方向监控视频...")
+        _ds(self.video_path_x_input, lambda: f"""
+            QLineEdit {{
                 border: 1px solid {C_INPUT_BORDER}; border-radius: 6px;
                 padding: 6px 10px; background: {C_INPUT_BG}; font-size: 12px;
             }}
-            QTextEdit:focus {{ border-color: {C_INPUT_FOCUS_BORDER}; background: {C_INPUT_FOCUS_BG}; }}
+            QLineEdit:focus {{ border-color: {C_INPUT_FOCUS_BORDER}; background: {C_INPUT_FOCUS_BG}; }}
         """)
-        row.addWidget(self.video_path_input, 1)
+        x_row.addWidget(self.video_path_x_input, 1)
+        btn_browse_x = QPushButton("浏览X")
+        btn_browse_x.setFixedSize(70, 32)
+        _ds(btn_browse_x, lambda: MainWindow._btn_style(C_PRIMARY))
+        btn_browse_x.clicked.connect(lambda: self._on_browse_video("x"))
+        x_row.addWidget(btn_browse_x)
+        row.addLayout(x_row)
 
-        btn_browse = QPushButton("浏览")
-        btn_browse.setFixedSize(70, 32)
-        _ds(btn_browse, lambda: MainWindow._btn_style(C_PRIMARY))
-        btn_browse.clicked.connect(self._on_browse_video)
-        row.addWidget(btn_browse)
+        y_row = QHBoxLayout()
+        y_lbl = QLabel("Y方向视频")
+        _ds(y_lbl, lambda: f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px;")
+        y_row.addWidget(y_lbl)
+        self.video_path_y_input = QLineEdit()
+        self.video_path_y_input.setPlaceholderText("上传同一路口 Y 方向监控视频...")
+        _ds(self.video_path_y_input, lambda: f"""
+            QLineEdit {{
+                border: 1px solid {C_INPUT_BORDER}; border-radius: 6px;
+                padding: 6px 10px; background: {C_INPUT_BG}; font-size: 12px;
+            }}
+            QLineEdit:focus {{ border-color: {C_INPUT_FOCUS_BORDER}; background: {C_INPUT_FOCUS_BG}; }}
+        """)
+        y_row.addWidget(self.video_path_y_input, 1)
+        btn_browse_y = QPushButton("浏览Y")
+        btn_browse_y.setFixedSize(70, 32)
+        _ds(btn_browse_y, lambda: MainWindow._btn_style(C_PRIMARY))
+        btn_browse_y.clicked.connect(lambda: self._on_browse_video("y"))
+        y_row.addWidget(btn_browse_y)
 
         self.btn_detect = QPushButton("开始检测")
         self.btn_detect.setFixedSize(90, 32)
         _ds(self.btn_detect, lambda: MainWindow._btn_style(C_GREEN))
         self.btn_detect.clicked.connect(self._on_start_detect)
-        row.addWidget(self.btn_detect)
+        y_row.addWidget(self.btn_detect)
+        row.addLayout(y_row)
+
         upload_layout.addLayout(row)
 
         row2 = QHBoxLayout()
@@ -1080,30 +1110,32 @@ class MainWindow(QMainWindow):
 
     # ── YOLO 检测 ────────────────────────────────────────
 
-    def _on_browse_video(self):
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "选择入口监控视频（至少两个）", "",
+    def _on_browse_video(self, direction):
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"选择{direction.upper()}方向监控视频", "",
             "视频文件 (*.mp4 *.avi);;所有文件 (*.*)"
         )
-        if paths:
-            self.selected_video_paths = paths
-            self.video_path_input.setPlainText("\n".join(paths))
-
-    def _get_selected_video_paths(self):
-        paths = []
-        for raw in self.video_path_input.toPlainText().splitlines():
-            path = raw.strip().strip('"')
-            if path and path not in paths:
-                paths.append(path)
-        return paths
+        if not path:
+            return
+        if direction.lower() == "x":
+            self.video_path_x_input.setText(path)
+        else:
+            self.video_path_y_input.setText(path)
 
     def _on_start_detect(self):
-        video_paths = self._get_selected_video_paths()
-        if len(video_paths) < 2:
-            self.detect_status.setText("错误: 请至少上传 2 个入口监控视频")
+        video_x = self.video_path_x_input.text().strip()
+        video_y = self.video_path_y_input.text().strip()
+        if not video_x or not video_y:
+            self.detect_status.setText("错误: 请同时上传 X / Y 两个方向的视频")
             self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
             return
-        missing = [p for p in video_paths if not os.path.exists(p)]
+        if os.path.normcase(video_x) == os.path.normcase(video_y):
+            self.detect_status.setText("错误: X / Y 方向不能使用同一个视频")
+            self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
+            return
+
+        video_pairs = [("X", video_x), ("Y", video_y)]
+        missing = [p for _, p in video_pairs if not os.path.exists(p)]
         if missing:
             self.detect_status.setText(f"错误: 视频路径不存在 {Path(missing[0]).name}")
             self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
@@ -1121,7 +1153,7 @@ class MainWindow(QMainWindow):
 
         self.detecting = True
         self.detect_progress = None
-        self.detect_status.setText(f"检测中... 0/{len(video_paths)}")
+        self.detect_status.setText("检测中... 0/2")
         self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
         self.btn_detect.setEnabled(False)
 
@@ -1164,18 +1196,25 @@ class MainWindow(QMainWindow):
                 import yolov26 as yolo
                 cwd = os.getcwd()
                 outputs = []
-                total = len(video_paths)
                 os.chdir(str(PROJECT_ROOT))
                 try:
-                    for idx, video_path in enumerate(video_paths, start=1):
-                        self.detect_progress = {"status": "running", "current": idx, "total": total}
+                    for idx, (direction, video_path) in enumerate(video_pairs, start=1):
+                        self.detect_progress = {
+                            "status": "running",
+                            "current": idx,
+                            "total": 2,
+                            "direction": direction,
+                        }
                         basename = Path(video_path).stem
-                        output_path = str(TEST_OUTPUT_DIR / f"output_{idx:02d}_{basename}.mp4")
+                        output_path = str(TEST_OUTPUT_DIR / f"output_{direction}_{basename}.mp4")
                         result = yolo.detect_video(video_path, output_path, frame_callback=on_detect_frame)
+                        result["direction"] = direction
+                        result["source_path"] = video_path
                         outputs.append(result)
                 finally:
                     os.chdir(cwd)
-                self.detect_progress = {"status": "done", "outputs": outputs}
+                pair_session = self._save_direction_pair_session(outputs)
+                self.detect_progress = {"status": "done", "outputs": outputs, "pair_session": pair_session}
             except Exception as e:
                 import traceback
                 self.detect_progress = {
@@ -1191,7 +1230,9 @@ class MainWindow(QMainWindow):
     def _check_detect_status(self):
         prog = self.detect_progress
         if self.detecting and isinstance(prog, dict) and prog.get("status") == "running":
-            self.detect_status.setText(f"检测中... {prog.get('current', 0)}/{prog.get('total', 0)}")
+            self.detect_status.setText(
+                f"检测中... {prog.get('direction', '?')}方向 {prog.get('current', 0)}/{prog.get('total', 0)}"
+            )
             self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
             self.detect_progress = None
             return
@@ -1201,12 +1242,14 @@ class MainWindow(QMainWindow):
             self.btn_detect.setEnabled(True)
             self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0, "video_fps": None}
             self._detect_dirty = False
+            pair_session = None
             if isinstance(prog, dict) and prog.get("status") == "fail":
                 self.detect_status.setText(prog.get("message", "检测失败"))
                 self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
             else:
                 outputs = prog.get("outputs", []) if isinstance(prog, dict) else []
-                self.detect_status.setText(f"检测完成，共处理 {len(outputs)} 个入口视频")
+                pair_session = prog.get("pair_session") if isinstance(prog, dict) else None
+                self.detect_status.setText(f"检测完成，已生成 X/Y 双方向统计")
                 self.detect_status.setStyleSheet(f"color: {C_GREEN.name()}; font-size: 12px;")
                 last_output = outputs[-1]["output_path"] if outputs else None
                 if last_output and self._load_video(last_output):
@@ -1220,6 +1263,55 @@ class MainWindow(QMainWindow):
             if self._sim_live_mode:
                 self.cycle_info.setPlaceholderText("检测已结束，仿真继续")
             self._load_sessions()
+            if pair_session:
+                self.status_label.setText(f"已生成双方向会话: {Path(pair_session).name}")
+
+    def _save_direction_pair_session(self, outputs):
+        """将 X/Y 两个方向的视频检测结果聚合为同一路口的一条会话记录。"""
+        by_direction = {}
+        for item in outputs:
+            direction = str(item.get("direction", "")).upper()
+            summary = item.get("summary", {}) or {}
+            by_direction[direction] = {
+                "source": item.get("source_path"),
+                "session_dir": item.get("session_dir"),
+                "output_path": item.get("output_path"),
+                "line_count_total": summary.get("line_count_total", 0),
+                "line_count_in": summary.get("line_count_in", 0),
+                "line_count_out": summary.get("line_count_out", 0),
+                "crossed_class_counts": summary.get("crossed_class_counts", {}),
+                "total_frames": summary.get("total_frames", 0),
+                "total_detections": summary.get("total_detections", 0),
+                "avg_fps": summary.get("avg_fps", 0),
+                "video_info": summary.get("video_info", {}),
+            }
+
+        if "X" not in by_direction or "Y" not in by_direction:
+            raise ValueError("双方向会话生成失败：缺少 X 或 Y 方向结果")
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        x_name = Path(by_direction["X"]["source"]).stem
+        y_name = Path(by_direction["Y"]["source"]).stem
+        session_name = f"detection_pair_{timestamp}_{x_name[:16]}_{y_name[:16]}"
+        session_dir = DATA_DIR / session_name
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        line_count_x = int(by_direction["X"]["line_count_total"])
+        line_count_y = int(by_direction["Y"]["line_count_total"])
+        summary = {
+            "session_type": "direction_pair",
+            "source": "same_intersection_xy_pair",
+            "description": "同一路口两段垂直方向监控视频的聚合过线统计",
+            "count_method": "line_crossing_by_direction",
+            "line_count_x": line_count_x,
+            "line_count_y": line_count_y,
+            "line_count_total": line_count_x + line_count_y,
+            "direction_videos": by_direction,
+            "preview_output": by_direction["Y"].get("output_path") or by_direction["X"].get("output_path"),
+        }
+        with open(session_dir / "summary.json", "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2)
+        return str(session_dir)
 
     # ── 视频播放 ─────────────────────────────────────────
 
@@ -1305,7 +1397,7 @@ class MainWindow(QMainWindow):
         if not DATA_DIR.exists():
             return
         for d in sorted(DATA_DIR.iterdir(), reverse=True):
-            if d.is_dir() and d.name.startswith("detection_"):
+            if d.is_dir() and (d.name.startswith("detection_") or d.name.startswith("detection_pair_")):
                 summary = load_json(d / "summary.json")
                 self.sessions.append({"name": d.name, "path": str(d), "summary": summary})
                 self.session_list.addItem(d.name)
@@ -1355,6 +1447,10 @@ class MainWindow(QMainWindow):
         s = self.sessions[row]
         self.selected_session = s
         summary = s.get("summary", {})
+
+        if summary.get("session_type") == "direction_pair":
+            self._render_direction_pair_session(summary)
+            return
 
         classes = summary.get("class_counts", {})
         total = summary.get("total_detections", 0)
@@ -1413,6 +1509,50 @@ class MainWindow(QMainWindow):
         )
         self.session_detail.setText(info)
 
+    def _render_direction_pair_session(self, summary):
+        direction_videos = summary.get("direction_videos", {})
+        x_info = direction_videos.get("X", {})
+        y_info = direction_videos.get("Y", {})
+        x_count = int(summary.get("line_count_x", x_info.get("line_count_total", 0)))
+        y_count = int(summary.get("line_count_y", y_info.get("line_count_total", 0)))
+        total_count = int(summary.get("line_count_total", x_count + y_count))
+        total_frames = int(x_info.get("total_frames", 0)) + int(y_info.get("total_frames", 0))
+        total_detections = int(x_info.get("total_detections", 0)) + int(y_info.get("total_detections", 0))
+
+        self.stat_frames.set_value(str(total_frames))
+        self.stat_detections.set_value(str(total_detections))
+        self.stat_vehicles.set_value(str(total_count))
+        self.stat_fps.set_value("--")
+
+        self.class_table.setRowCount(0)
+        rows = [("X方向过线", x_count), ("Y方向过线", y_count)]
+        for label, count in rows:
+            pct_val = (count / total_count * 100) if total_count else 0.0
+            row_idx = self.class_table.rowCount()
+            self.class_table.insertRow(row_idx)
+
+            name_item = QTableWidgetItem(label)
+            name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            self.class_table.setItem(row_idx, 0, name_item)
+
+            count_item = QTableWidgetItem(str(count))
+            count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
+            self.class_table.setItem(row_idx, 1, count_item)
+
+            pct_item = QTableWidgetItem(f"{pct_val:.1f}%")
+            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            self.class_table.setItem(row_idx, 2, pct_item)
+
+        info = (
+            f"类型: 同一路口双方向视频\n"
+            f"X视频: {Path(str(x_info.get('source', 'N/A'))).name}\n"
+            f"Y视频: {Path(str(y_info.get('source', 'N/A'))).name}\n"
+            f"X方向车辆数: {x_count}  Y方向车辆数: {y_count}\n"
+            f"总过线数: {total_count}\n"
+            f"可直接作为交通灯仿真的 X / Y 决策输入"
+        )
+        self.session_detail.setText(info)
+
     # ── 交通灯仿真 (Vehicle-Actuated) ────────────────────
 
     def _on_data_source_changed(self, text):
@@ -1466,9 +1606,16 @@ class MainWindow(QMainWindow):
         """初始化离线回放仿真。"""
         sel = self.data_source_combo.currentText()
         self._sim_live_mode = False
+        self.va_pair_summary = None
         if sel and sel != "(默认)" and sel != "实时检测":
             session_dir = os.path.join(DATA_DIR, sel)
-            self.va_frames, self.va_fps = load_frames(session_dir)
+            summary = load_json(Path(session_dir) / "summary.json")
+            if summary.get("session_type") == "direction_pair":
+                self.va_frames = []
+                self.va_fps = 1.0
+                self.va_pair_summary = summary
+            else:
+                self.va_frames, self.va_fps = load_frames(session_dir)
         else:
             self.va_frames = []
             self.va_fps = 30.0
@@ -1477,6 +1624,8 @@ class MainWindow(QMainWindow):
         self.feature_extractor.reset()
         self.va_frame_index = 0
         self.va_sim_time = 0.0
+        self.va_pair_wait_x = 0.0
+        self.va_pair_wait_y = 0.0
 
     def _on_start_sim(self):
         # 实时模式：只处理暂停恢复
@@ -1514,6 +1663,35 @@ class MainWindow(QMainWindow):
         self.history_table.setRowCount(0)
         self.va_controller.reset()
         self.feature_extractor.reset()
+        self.va_pair_summary = None
+        self.va_pair_wait_x = 0.0
+        self.va_pair_wait_y = 0.0
+
+    def _build_pair_features(self, dt):
+        """基于双方向视频聚合计数构造控制器输入。"""
+        summary = self.va_pair_summary or {}
+        queue_x = int(summary.get("line_count_x", 0))
+        queue_y = int(summary.get("line_count_y", 0))
+
+        phase = self.va_controller.get_state().get("phase", "X")
+        if phase == "X":
+            self.va_pair_wait_x = max(0.0, self.va_pair_wait_x - dt * max(queue_x, 1) * 0.5)
+            self.va_pair_wait_y += dt * queue_y
+        else:
+            self.va_pair_wait_y = max(0.0, self.va_pair_wait_y - dt * max(queue_y, 1) * 0.5)
+            self.va_pair_wait_x += dt * queue_x
+
+        return {
+            "queue_x": queue_x,
+            "queue_y": queue_y,
+            "wait_x": self.va_pair_wait_x,
+            "wait_y": self.va_pair_wait_y,
+            "gap_x": 0.0 if queue_x > 0 else self.va_controller.gap_seconds,
+            "gap_y": 0.0 if queue_y > 0 else self.va_controller.gap_seconds,
+            "arrival_x": float(queue_x),
+            "arrival_y": float(queue_y),
+            "calibrated": True,
+        }
 
     def _sim_tick(self):
         if not self.sim_running or self.sim_paused:
@@ -1561,6 +1739,18 @@ class MainWindow(QMainWindow):
         self.last_tick = now
 
         self.va_sim_time += dt
+
+        if self.va_pair_summary is not None:
+            self.va_features = self._build_pair_features(dt)
+            feats = self.va_features
+            x_light, y_light, countdown = self.va_controller.step(
+                feats["queue_x"], feats["queue_y"],
+                feats["wait_x"], feats["wait_y"],
+                feats["gap_x"], feats["gap_y"],
+                dt,
+            )
+            self._update_sim_ui(x_light, y_light, countdown)
+            return
 
         n_frames = max(1, int(dt * max(self.va_fps, 1.0)))
         for _ in range(min(n_frames, 10)):
@@ -1646,12 +1836,12 @@ class MainWindow(QMainWindow):
                 f"color: {C_ORANGE.name()}; font-size: 12px; font-weight: bold;"
             )
 
-        mode_tag = "实时" if self._sim_live_mode else "VA"
+        mode_tag = "实时" if self._sim_live_mode else ("双视频" if self.va_pair_summary is not None else "VA")
         self.cycle_info.setText(
             f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
-            f"X排队:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
+            f"X数量:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
             f"清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
-            f"Y排队:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
+            f"Y数量:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
             f"清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
             f"绿灯已过:{state['phase_elapsed']:.1f}s  "
             f"标定:{'✓' if feats.get('calibrated') else '…'}"

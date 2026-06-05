@@ -8,8 +8,9 @@ Vehicle-Actuated 交通灯控制器
   2. 已过 < 最小绿灯 → KEEP (安全约束)
   3. 当前方向已清空 (gap > 阈值) → SWITCH
   4. 已过 >= 最大绿灯 → SWITCH (最大约束)
-  5. 对向累计等待时间 > 当前 × 1.2 且 当前无排队 → SWITCH
-  6. 其他 → KEEP
+  5. 对向车辆数明显高于当前方向 → SWITCH
+  6. 对向累计等待时间 > 当前 × 1.2 且 当前无排队 → SWITCH
+  7. 其他 → KEEP
 
 参数表:
   min_green: 10s  — 最短绿灯
@@ -177,7 +178,11 @@ class VAController:
         if self._phase_elapsed >= self.max_green:
             return True, "最大绿灯"
 
-        # 4. 等待时间加权: 对方积累等待 > 当前 × ratio, 且当前无排队
+        # 4. 计数加权: 对向车辆数明显更高
+        if q_other > max(1, q_cur) * self.wait_ratio and q_other >= q_cur + 1:
+            return True, f"计数加权(对向{q_other} > 当前{q_cur}×{self.wait_ratio})"
+
+        # 5. 等待时间加权: 对方积累等待 > 当前 × ratio, 且当前无排队
         if q_cur == 0 and w_other > 5.0 and w_other > w_cur * self.wait_ratio:
             return True, f"等待加权(对方{w_other:.0f}s > 己方{w_cur:.0f}s×{self.wait_ratio})"
 
