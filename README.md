@@ -4,7 +4,7 @@
 
 ## 功能
 
-- **目标检测**：支持图片、视频、摄像头、RTSP 流的 YOLOv26 实时检测（ONNX Runtime / OpenVINO 双后端）
+- **目标检测**：支持视频、摄像头、RTSP 流的 YOLOv26 实时检测（ONNX Runtime / OpenVINO 双后端）
 - **过线计数**：基于目标追踪与自动计数线，对车辆执行 `track_id` 级别过线计数，统计进线 / 出线 / 总过线数
 - **双方向视频上传**：GUI 支持分别上传同一路口 `X / Y` 两个垂直方向的视频，并自动聚合成一组双方向车辆统计
 - **数据记录**：逐帧保存检测框、类别、置信度、track_id、过线事件 到 `data/` 目录（JSON + CSV）
@@ -44,26 +44,21 @@ python gui_app.py
 
 ```bash
 # 视频检测
-python yolov26.py video test/input/traffic.mp4 test/output/output.mp4
+python main.py video test/input/traffic.mp4 test/output/output.mp4
 
 # 摄像头
-python yolov26.py camera 0 test/output/output.mp4
+python main.py camera 0 test/output/output.mp4
 
-# 图片检测
-python yolov26.py image test/input/input.png test/output/output.png
-```
+# 项目结构
 
-## 项目结构
-
-```
+```text
 ├── algorithm/
 │   ├── __init__.py              # 算法模块入口
 │   ├── data_extractor.py        # 方向标定、排队分类、特征提取
 │   └── va_controller.py         # Vehicle-Actuated 控制器
 ├── gui_app.py                   # PyQt6 桌面应用
 ├── theme_manager.py             # 主题管理器（明暗调色板 + QPalette）
-├── yolov26.py                   # YOLOv26 检测（ONNX Runtime / OpenVINO）
-├── main.py                      # YOLOv3-tiny 检测
+├── main.py                      # YOLOv26 检测（ONNX Runtime / OpenVINO）
 ├── traffic_light_console.py     # 控制台交通灯模拟
 ├── traffic_light_raspberry.py   # 树莓派 GPIO 控制
 ├── data/
@@ -78,7 +73,6 @@ python yolov26.py image test/input/input.png test/output/output.png
 │   ├── downloader.ps1           # 模型下载
 │   └── converter.ps1            # 模型转换
 └── test/
-    ├── input/                   # 测试输入
     └── output/                  # 检测输出
 ```
 

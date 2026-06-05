@@ -1193,7 +1193,7 @@ class MainWindow(QMainWindow):
                 cv2.waitKey = lambda *_a, **_k: -1
                 cv2.destroyAllWindows = lambda: None
 
-                import yolov26 as yolo
+                import main as yolo
                 cwd = os.getcwd()
                 outputs = []
                 os.chdir(str(PROJECT_ROOT))
