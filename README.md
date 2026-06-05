@@ -25,6 +25,8 @@
 uv sync
 ```
 
+项目仅保留 `pyproject.toml + uv.lock` 作为依赖来源，不再维护 `requirements.txt`。
+
 ### 运行 GUI
 
 ```bash
@@ -48,8 +50,9 @@ python main.py video test/input/traffic.mp4 test/output/output.mp4
 
 # 摄像头
 python main.py camera 0 test/output/output.mp4
+```
 
-# 项目结构
+## 项目结构
 
 ```text
 ├── algorithm/

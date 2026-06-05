@@ -42,8 +42,7 @@ dev = [
 ]
 
 [project.scripts]
-yolo-v3-tiny = "main:detect_video"
-yolo-v26 = "yolov26:run_cli"
+yolo-detect = "main:run_cli"
 
 [project.urls]
 Homepage = "https://github.com/your-repo/openvino-yolo-detection"
@@ -53,9 +52,8 @@ Repository = "https://github.com/your-repo/openvino-yolo-detection"
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["main*", "yolov26*"]
+[tool.setuptools]
+py-modules = ["main", "gui_app", "theme_manager"]
 
 [tool.black]
 line-length = 100
