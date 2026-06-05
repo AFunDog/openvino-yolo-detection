@@ -5,6 +5,7 @@ YOLOv26 实现代码
 """
 
 from pathlib import Path
+import re
 
 import openvino as ov
 import onnxruntime as ort
@@ -73,6 +74,13 @@ CLASS_NAMES = ['others', 'car', 'van', 'bus']
 
 # 数据记录目录
 DATA_DIR = "data"
+
+
+def _safe_name(text):
+    """将任意文本压缩为适合文件名的短标识。"""
+    cleaned = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff._-]+", "_", str(text))
+    cleaned = cleaned.strip("._-")
+    return cleaned[:40] or "source"
 
 
 # ─── IoU 追踪器（跨帧去重） ─────────────────────────────
@@ -155,6 +163,132 @@ class SimpleTracker:
         return track_ids
 
 
+class LineCounter:
+    """基于 track_id 的自动过线计数器。"""
+
+    def __init__(self, line_position=0.5, min_displacement=25.0):
+        self.line_position = line_position
+        self.min_displacement = min_displacement
+        self.track_states = {}   # track_id -> state
+        self.axis_vec = np.array([0.0, 1.0], dtype=np.float32)
+        self.line_point = None
+        self.total_count = 0
+        self.count_in = 0
+        self.count_out = 0
+        self.crossed_class_counts = {}
+
+    def _update_axis(self, frame_width, frame_height):
+        vectors = []
+        for state in self.track_states.values():
+            start = state.get("start")
+            last = state.get("last")
+            if start is None or last is None:
+                continue
+            dx = last[0] - start[0]
+            dy = last[1] - start[1]
+            if math.hypot(dx, dy) >= self.min_displacement:
+                vectors.append([dx, dy])
+
+        if vectors:
+            vecs = np.asarray(vectors, dtype=np.float32)
+            cov = vecs.T @ vecs
+            eigvals, eigvecs = np.linalg.eigh(cov)
+            axis = eigvecs[:, int(np.argmax(eigvals))]
+            norm = np.linalg.norm(axis)
+            if norm > 1e-6:
+                axis = axis / norm
+                if axis[1] < 0:
+                    axis = -axis
+                self.axis_vec = axis.astype(np.float32)
+
+        self.line_point = np.array(
+            [frame_width * 0.5, frame_height * self.line_position],
+            dtype=np.float32,
+        )
+
+    def update(self, boxes, class_ids, track_ids, frame_width, frame_height):
+        self._update_axis(frame_width, frame_height)
+        crossing_events = []
+
+        for box, cls_id, track_id in zip(boxes, class_ids, track_ids):
+            cx = float((box[0] + box[2]) / 2.0)
+            cy = float((box[1] + box[3]) / 2.0)
+            center = np.array([cx, cy], dtype=np.float32)
+
+            state = self.track_states.setdefault(track_id, {
+                "start": center.copy(),
+                "last": center.copy(),
+                "prev_side": None,
+                "counted": False,
+                "class_id": int(cls_id),
+            })
+            state["last"] = center.copy()
+            state["class_id"] = int(cls_id)
+
+            if self.line_point is None:
+                continue
+
+            signed_dist = float(np.dot(center - self.line_point, self.axis_vec))
+            side = 1 if signed_dist > 1.0 else (-1 if signed_dist < -1.0 else 0)
+
+            prev_side = state.get("prev_side")
+            if prev_side is None and side != 0:
+                state["prev_side"] = side
+                continue
+
+            moved = math.hypot(center[0] - state["start"][0], center[1] - state["start"][1])
+            crossed = (
+                not state.get("counted", False)
+                and prev_side is not None
+                and side != 0
+                and prev_side != side
+                and moved >= self.min_displacement
+            )
+            if crossed:
+                direction = "in" if prev_side < side else "out"
+                class_name = get_class_name(cls_id)
+                self.total_count += 1
+                if direction == "in":
+                    self.count_in += 1
+                else:
+                    self.count_out += 1
+                self.crossed_class_counts[class_name] = (
+                    self.crossed_class_counts.get(class_name, 0) + 1
+                )
+                state["counted"] = True
+                crossing_events.append({
+                    "track_id": int(track_id),
+                    "class": class_name,
+                    "class_id": int(cls_id),
+                    "direction": direction,
+                    "count_total": self.total_count,
+                })
+
+            if side != 0:
+                state["prev_side"] = side
+
+        return crossing_events
+
+    def get_line_info(self, frame_width, frame_height):
+        if self.line_point is None:
+            self._update_axis(frame_width, frame_height)
+        point = self.line_point if self.line_point is not None else np.array(
+            [frame_width * 0.5, frame_height * self.line_position], dtype=np.float32
+        )
+        direction = self.axis_vec
+        tangent = np.array([-direction[1], direction[0]], dtype=np.float32)
+        half_len = min(frame_width, frame_height) * 0.45
+        p1 = point - tangent * half_len
+        p2 = point + tangent * half_len
+        return {
+            "p1": [float(p1[0]), float(p1[1])],
+            "p2": [float(p2[0]), float(p2[1])],
+            "axis": [float(direction[0]), float(direction[1])],
+            "anchor": [float(point[0]), float(point[1])],
+            "line_position": float(self.line_position),
+        }
+
+
 # ─── 数据保存 ──────────────────────────────────────────
 
 def save_detection_data(source, frame_data, summary):
@@ -166,8 +300,9 @@ def save_detection_data(source, frame_data, summary):
         summary: 统计汇总信息
     """
     os.makedirs(DATA_DIR, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    session_dir = os.path.join(DATA_DIR, f"detection_{timestamp}")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    source_name = _safe_name(Path(str(source)).stem if str(source) else "source")
+    session_dir = os.path.join(DATA_DIR, f"detection_{timestamp}_{source_name}")
     os.makedirs(session_dir, exist_ok=True)
 
     # 保存帧级 JSON 数据
@@ -197,6 +332,7 @@ def save_detection_data(source, frame_data, summary):
     print(f"  - frames.json  (帧级详细数据)")
     print(f"  - frames.csv   (帧级表格数据)")
     print(f"  - summary.json (统计汇总)")
+    return session_dir
 
 
 def convert_boxes(x):
@@ -426,6 +562,24 @@ def draw_detections(img, boxes, confidences, class_ids, classes):
     return img
 
 
+def draw_counting_line(img, line_info, total_count, count_in, count_out):
+    """绘制自动计数线和累计计数。"""
+    p1 = tuple(int(v) for v in line_info["p1"])
+    p2 = tuple(int(v) for v in line_info["p2"])
+    cv2.line(img, p1, p2, (0, 200, 255), 2)
+    cv2.circle(img, tuple(int(v) for v in line_info["anchor"]), 4, (0, 200, 255), -1)
+    cv2.putText(
+        img,
+        f"Crossed: {total_count}  In:{count_in}  Out:{count_out}",
+        (10, 90),
+        DISPLAY_LABEL_FONT,
+        0.8,
+        (0, 200, 255),
+        2,
+    )
+    return img
+
+
 # ─── 视频检测 ──────────────────────────────────────────
 
 def detect_video(source=0, output_path=None, frame_callback=None):
@@ -475,6 +629,8 @@ def detect_video(source=0, output_path=None, frame_callback=None):
     last_confidences = []
     last_class_ids = []
     tracker = SimpleTracker()
+    line_counter = LineCounter()
+    line_info = line_counter.get_line_info(max(width, 1), max(height, 1))
     print("开始检测，按 'q' 退出...")
 
     while True:
@@ -495,6 +651,8 @@ def detect_video(source=0, output_path=None, frame_callback=None):
 
         # 追踪器更新（去重统计）
         track_ids = tracker.update(boxes, class_ids)
+        crossing_events = line_counter.update(boxes, class_ids, track_ids, width, height)
+        line_info = line_counter.get_line_info(width, height)
 
         # 记录检测数据
         detections = []
@@ -518,6 +676,10 @@ def detect_video(source=0, output_path=None, frame_callback=None):
             "timestamp": round(time.time(), 3),
             "detections": detections,
             "num_objects": len(detections),
+            "line_crossings": crossing_events,
+            "line_count_total": line_counter.total_count,
+            "line_count_in": line_counter.count_in,
+            "line_count_out": line_counter.count_out,
         })
 
         # 绘制结果
@@ -527,6 +689,9 @@ def detect_video(source=0, output_path=None, frame_callback=None):
             )
         else:
             result_frame = frame
+        result_frame = draw_counting_line(
+            result_frame, line_info, line_counter.total_count, line_counter.count_in, line_counter.count_out
+        )
 
         # 计算FPS
         end_time = time.time()
@@ -555,7 +720,19 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         # 实时回调 — skipped frames 不传 detections 避免假排队
         if frame_callback:
             cb_dets = detections if is_real_detection else None
-            frame_callback(result_frame, frame_count, avg_fps, len(boxes), cb_dets, fps)
+            frame_callback(
+                result_frame,
+                frame_count,
+                avg_fps,
+                len(boxes),
+                cb_dets,
+                fps,
+                {
+                    "line_count_total": line_counter.total_count,
+                    "line_count_in": line_counter.count_in,
+                    "line_count_out": line_counter.count_out,
+                },
+            )
 
         # 按 'q' 退出
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -585,15 +762,22 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         "unique_class_counts": tracker.unique_class_counts,
         "unique_vehicle_count": sum(
             v for k, v in tracker.unique_class_counts.items()
-            if k.lower() in {"car", "truck", "bus", "motorcycle", "bicycle"}
+            if k.lower() in {"car", "van", "truck", "bus", "motorcycle", "bicycle"}
         ),
+        "count_method": "line_crossing",
+        "line_count_total": line_counter.total_count,
+        "line_count_in": line_counter.count_in,
+        "line_count_out": line_counter.count_out,
+        "crossed_class_counts": line_counter.crossed_class_counts,
+        "line_info": line_info,
         "video_info": {"width": width, "height": height, "fps": fps},
         "model": detector["model_path"],
         "backend": detector["backend"],
         "confidence_threshold": CONF_THRESHOLD,
         "iou_threshold": IOU_THRESHOLD,
     }
-    save_detection_data(source, frame_data, summary)
+    session_dir = save_detection_data(source, frame_data, summary)
+    return {"session_dir": session_dir, "summary": summary, "output_path": output_path}
 
 
 # ─── 图片检测 ──────────────────────────────────────────
