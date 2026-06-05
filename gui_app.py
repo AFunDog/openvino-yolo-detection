@@ -720,6 +720,15 @@ class MainWindow(QMainWindow):
         self._load_sessions()
         self.canvas.update_state()
 
+    @staticmethod
+    def _backend_label(backend):
+        backend = str(backend or "").lower()
+        if backend == "onnxruntime":
+            return "ONNX"
+        if backend == "openvino":
+            return "OpenVINO"
+        return backend or "未知"
+
     # ── 主题刷新 ─────────────────────────────────────────
 
     def refresh_theme(self):
@@ -1143,9 +1152,13 @@ class MainWindow(QMainWindow):
         if self.detecting:
             return
 
-        model_path = PROJECT_ROOT / "public" / "yolo-v26" / "ir_model" / "yolo26n.xml"
-        if not model_path.exists():
-            self.detect_status.setText("错误: YOLOv26 模型文件不存在")
+        model_onnx_path = PROJECT_ROOT / "public" / "yolo-v26" / "yolo26n.onnx"
+        model_xml_path = PROJECT_ROOT / "public" / "yolo-v26" / "ir_model" / "yolo26n.xml"
+        model_bin_path = PROJECT_ROOT / "public" / "yolo-v26" / "ir_model" / "yolo26n.bin"
+        has_onnx = model_onnx_path.exists()
+        has_openvino_ir = model_xml_path.exists() and model_bin_path.exists()
+        if not (has_onnx or has_openvino_ir):
+            self.detect_status.setText("错误: YOLOv26 模型文件不存在（需 ONNX 或 OpenVINO IR）")
             self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
             return
 
@@ -1249,15 +1262,21 @@ class MainWindow(QMainWindow):
             else:
                 outputs = prog.get("outputs", []) if isinstance(prog, dict) else []
                 pair_session = prog.get("pair_session") if isinstance(prog, dict) else None
-                self.detect_status.setText(f"检测完成，已生成 X/Y 双方向统计")
+                backend_names = []
+                for item in outputs:
+                    summary = item.get("summary", {}) or {}
+                    direction = str(item.get("direction", "")).upper() or "?"
+                    backend_names.append(f"{direction}:{self._backend_label(summary.get('backend'))}")
+                backend_text = f"  后端: {' / '.join(backend_names)}" if backend_names else ""
+                self.detect_status.setText(f"检测完成，已生成 X/Y 双方向统计{backend_text}")
                 self.detect_status.setStyleSheet(f"color: {C_GREEN.name()}; font-size: 12px;")
                 last_output = outputs[-1]["output_path"] if outputs else None
                 if last_output and self._load_video(last_output):
                     self.btn_play.setText("⏸ 暂停")
-                    self.detect_status.setText(f"播放: {Path(last_output).name}")
+                    self.detect_status.setText(f"播放: {Path(last_output).name}{backend_text}")
                     self.detect_status.setStyleSheet(f"color: {C_GREEN.name()}; font-size: 12px;")
                 else:
-                    self.detect_status.setText("检测完成，但结果视频无法播放")
+                    self.detect_status.setText(f"检测完成，但结果视频无法播放{backend_text}")
                     self.detect_status.setStyleSheet(f"color: {C_ORANGE.name()}; font-size: 12px;")
             # 标出检测结束但不停止仿真
             if self._sim_live_mode:
@@ -1284,6 +1303,7 @@ class MainWindow(QMainWindow):
                 "total_detections": summary.get("total_detections", 0),
                 "avg_fps": summary.get("avg_fps", 0),
                 "video_info": summary.get("video_info", {}),
+                "backend": summary.get("backend", ""),
             }
 
         if "X" not in by_direction or "Y" not in by_direction:
@@ -1467,6 +1487,7 @@ class MainWindow(QMainWindow):
             )
         count_in = summary.get("line_count_in", 0)
         count_out = summary.get("line_count_out", 0)
+        backend_label = self._backend_label(summary.get("backend"))
 
         self.stat_frames.set_value(str(frames))
         self.stat_detections.set_value(str(total))
@@ -1503,6 +1524,7 @@ class MainWindow(QMainWindow):
 
         info = (
             f"视频源: {summary.get('source', 'N/A')}\n"
+            f"推理后端: {backend_label}\n"
             f"分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}\n"
             f"总帧数: {frames}  总检测: {total}\n"
             f"过线总数: {vehicle_count}  进线:{count_in}  出线:{count_out}  FPS: {fps_val:.1f}"
@@ -1518,6 +1540,8 @@ class MainWindow(QMainWindow):
         total_count = int(summary.get("line_count_total", x_count + y_count))
         total_frames = int(x_info.get("total_frames", 0)) + int(y_info.get("total_frames", 0))
         total_detections = int(x_info.get("total_detections", 0)) + int(y_info.get("total_detections", 0))
+        x_backend = self._backend_label(x_info.get("backend"))
+        y_backend = self._backend_label(y_info.get("backend"))
 
         self.stat_frames.set_value(str(total_frames))
         self.stat_detections.set_value(str(total_detections))
@@ -1547,6 +1571,7 @@ class MainWindow(QMainWindow):
             f"类型: 同一路口双方向视频\n"
             f"X视频: {Path(str(x_info.get('source', 'N/A'))).name}\n"
             f"Y视频: {Path(str(y_info.get('source', 'N/A'))).name}\n"
+            f"推理后端: X={x_backend}  Y={y_backend}\n"
             f"X方向车辆数: {x_count}  Y方向车辆数: {y_count}\n"
             f"总过线数: {total_count}\n"
             f"可直接作为交通灯仿真的 X / Y 决策输入"
