@@ -695,6 +695,14 @@ class MainWindow(QMainWindow):
         self.video_last_frame_time = 0
         self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0, "video_fps": None}
         self._detect_dirty = False
+        self._live_dual_lock = threading.Lock()
+        self._live_dual_dirty = False
+        self._live_dual_state = {"X": {}, "Y": {}}
+        self._live_dual_wait_x = 0.0
+        self._live_dual_wait_y = 0.0
+        self._live_dual_gap_x = 0.0
+        self._live_dual_gap_y = 0.0
+        self._live_dual_last_totals = {"X": 0, "Y": 0}
 
         # 实时检测 → 仿真数据管道
         self._live_frames: deque = deque(maxlen=500)
@@ -728,6 +736,47 @@ class MainWindow(QMainWindow):
         if backend == "openvino":
             return "OpenVINO"
         return backend or "未知"
+
+    @staticmethod
+    def _new_live_direction_state():
+        return {
+            "frame_bgr": None,
+            "frame_idx": 0,
+            "fps": 0.0,
+            "num_objects": 0,
+            "line_count_total": 0,
+            "line_count_in": 0,
+            "line_count_out": 0,
+            "video_fps": 30.0,
+            "backend": "",
+            "source": "",
+            "done": False,
+        }
+
+    def _reset_live_dual_state(self, video_pairs=None):
+        state = {"X": self._new_live_direction_state(), "Y": self._new_live_direction_state()}
+        if video_pairs:
+            for direction, path in video_pairs:
+                direction = str(direction).upper()
+                if direction in state:
+                    state[direction]["source"] = str(path)
+        with self._live_dual_lock:
+            self._live_dual_state = state
+        self._live_dual_dirty = True
+        self._live_dual_wait_x = 0.0
+        self._live_dual_wait_y = 0.0
+        self._live_dual_gap_x = 0.0
+        self._live_dual_gap_y = 0.0
+        self._live_dual_last_totals = {"X": 0, "Y": 0}
+
+    @staticmethod
+    def _set_preview_frame(widget, frame_bgr):
+        if widget is None or frame_bgr is None:
+            return
+        rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
+        widget.set_frame(qimg)
 
     # ── 主题刷新 ─────────────────────────────────────────
 
@@ -772,7 +821,7 @@ class MainWindow(QMainWindow):
 
         self.nav_yolo = NavButton("  YOLO 视频分析")
         self.nav_yolo.active = True
-        self.nav_traffic = NavButton("  交通灯仿真")
+        self.nav_traffic = NavButton("  实时联动")
         sidebar_layout.addWidget(self.nav_yolo)
         sidebar_layout.addWidget(self.nav_traffic)
 
@@ -905,11 +954,15 @@ class MainWindow(QMainWindow):
         stats_layout.setSpacing(16)
         self.stat_frames = StatLabel("0", "帧数", "blue")
         self.stat_detections = StatLabel("0", "检测数", "primary")
-        self.stat_vehicles = StatLabel("0", "过线数", "green")
+        self.stat_vehicles = StatLabel("0", "总过线", "green")
+        self.stat_x_count = StatLabel("0", "X过线", "blue")
+        self.stat_y_count = StatLabel("0", "Y过线", "orange")
         self.stat_fps = StatLabel("0", "FPS", "orange")
         stats_layout.addWidget(self.stat_frames)
         stats_layout.addWidget(self.stat_detections)
         stats_layout.addWidget(self.stat_vehicles)
+        stats_layout.addWidget(self.stat_x_count)
+        stats_layout.addWidget(self.stat_y_count)
         stats_layout.addWidget(self.stat_fps)
         left_col.addWidget(card_stats)
 
@@ -946,39 +999,39 @@ class MainWindow(QMainWindow):
         bottom.addWidget(left_w, 2)
 
         right_col = QVBoxLayout()
-        card_video = CardWidget("视频预览")
-        video_layout = QVBoxLayout(card_video)
-        self.video_preview = VideoPreviewWidget()
-        video_layout.addWidget(self.video_preview)
-        right_col.addWidget(card_video, 1)
+        preview_row = QHBoxLayout()
+        preview_row.setSpacing(8)
 
-        right_w = QWidget()
-        right_w.setLayout(right_col)
-        bottom.addWidget(right_w, 3)
+        card_video_x = CardWidget("X方向实时画面")
+        video_layout_x = QVBoxLayout(card_video_x)
+        self.video_preview_x = VideoPreviewWidget()
+        video_layout_x.addWidget(self.video_preview_x)
+        preview_row.addWidget(card_video_x, 1)
 
-        layout.addLayout(bottom, 1)
-        self.stack.addWidget(page)
+        card_video_y = CardWidget("Y方向实时画面")
+        video_layout_y = QVBoxLayout(card_video_y)
+        self.video_preview_y = VideoPreviewWidget()
+        video_layout_y.addWidget(self.video_preview_y)
+        preview_row.addWidget(card_video_y, 1)
 
-    def _build_traffic_page(self):
-        page = QWidget()
-        layout = QHBoxLayout(page)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        right_col.addLayout(preview_row, 3)
 
-        card_canvas = CardWidget("路口状态")
-        canvas_layout = QVBoxLayout(card_canvas)
+        card_traffic = CardWidget("实时交通灯联动")
+        traffic_layout = QHBoxLayout(card_traffic)
+        traffic_layout.setSpacing(8)
+
+        traffic_left = QVBoxLayout()
         self.canvas = IntersectionCanvas()
-        canvas_layout.addWidget(self.canvas, 1)
-        layout.addWidget(card_canvas, 1)
+        traffic_left.addWidget(self.canvas, 1)
+        traffic_layout.addLayout(traffic_left, 3)
 
-        card_ctrl = CardWidget("交通灯状态")
-        ctrl_layout = QVBoxLayout(card_ctrl)
-        ctrl_layout.setSpacing(8)
+        traffic_right = QVBoxLayout()
+        traffic_right.setSpacing(8)
 
         self.xl_indicator = TrafficLightIndicator("X 方向", "blue")
         self.yl_indicator = TrafficLightIndicator("Y 方向", "orange")
-        ctrl_layout.addWidget(self.xl_indicator)
-        ctrl_layout.addWidget(self.yl_indicator)
+        traffic_right.addWidget(self.xl_indicator)
+        traffic_right.addWidget(self.yl_indicator)
 
         phase_row = QHBoxLayout()
         phase_lbl = QLabel("阶段:")
@@ -988,7 +1041,7 @@ class MainWindow(QMainWindow):
         _ds(self.phase_label, lambda: f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
         phase_row.addWidget(self.phase_label)
         phase_row.addStretch()
-        ctrl_layout.addLayout(phase_row)
+        traffic_right.addLayout(phase_row)
 
         timer_row = QHBoxLayout()
         timer_lbl = QLabel("倒计时")
@@ -998,7 +1051,7 @@ class MainWindow(QMainWindow):
         _ds(self.timer_text, lambda: f"color: {C_GREEN.name()}; font-size: 14px; font-weight: bold;")
         timer_row.addWidget(self.timer_text)
         timer_row.addStretch()
-        ctrl_layout.addLayout(timer_row)
+        traffic_right.addLayout(timer_row)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(6)
@@ -1007,11 +1060,11 @@ class MainWindow(QMainWindow):
             QProgressBar {{ background: {C_PROGRESS_BG}; border: none; border-radius: 3px; }}
             QProgressBar::chunk {{ background: {C_PROGRESS_CHUNK}; border-radius: 3px; }}
         """)
-        ctrl_layout.addWidget(self.progress_bar)
+        traffic_right.addWidget(self.progress_bar)
 
         btn_row = QHBoxLayout()
-        self.btn_start_sim = QPushButton("▶ 开始")
-        self.btn_start_sim.setFixedSize(90, 32)
+        self.btn_start_sim = QPushButton("▶ 启动联动")
+        self.btn_start_sim.setFixedSize(96, 32)
         _ds(self.btn_start_sim, lambda: MainWindow._btn_style(C_GREEN))
         self.btn_start_sim.clicked.connect(self._on_start_sim)
         btn_row.addWidget(self.btn_start_sim)
@@ -1027,11 +1080,11 @@ class MainWindow(QMainWindow):
         _ds(self.btn_reset_sim, lambda: MainWindow._btn_style(C_RED))
         self.btn_reset_sim.clicked.connect(self._on_reset_sim)
         btn_row.addWidget(self.btn_reset_sim)
-        ctrl_layout.addLayout(btn_row)
+        traffic_right.addLayout(btn_row)
 
         speed_lbl = QLabel("速度")
         _ds(speed_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        ctrl_layout.addWidget(speed_lbl)
+        traffic_right.addWidget(speed_lbl)
         speed_row = QHBoxLayout()
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
         self.speed_slider.setRange(1, 20)
@@ -1042,35 +1095,28 @@ class MainWindow(QMainWindow):
         _ds(self.speed_val, lambda: f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
         self.speed_slider.valueChanged.connect(lambda v: self.speed_val.setText(f"{v}x"))
         speed_row.addWidget(self.speed_val)
-        ctrl_layout.addLayout(speed_row)
+        traffic_right.addLayout(speed_row)
 
         ds_lbl = QLabel("数据源")
         _ds(ds_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        ctrl_layout.addWidget(ds_lbl)
+        traffic_right.addWidget(ds_lbl)
         self.data_source_combo = QComboBox()
         self.data_source_combo.addItem("(默认)")
         self.data_source_combo.addItem("实时检测")
-        ctrl_layout.addWidget(self.data_source_combo)
-
-        ctrl_layout.addSpacing(4)
-        line = QWidget()
-        line.setFixedHeight(1)
-        _ds(line, lambda: f"background: {C_SIDEBAR_BORDER};")
-        ctrl_layout.addWidget(line)
-        ctrl_layout.addSpacing(4)
+        traffic_right.addWidget(self.data_source_combo)
 
         ci_lbl = QLabel("感应控制状态")
         _ds(ci_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        ctrl_layout.addWidget(ci_lbl)
+        traffic_right.addWidget(ci_lbl)
         self.cycle_info = QTextEdit()
         self.cycle_info.setReadOnly(True)
-        self.cycle_info.setFixedHeight(90)
-        self.cycle_info.setPlaceholderText("点击 ▶ 开始")
-        ctrl_layout.addWidget(self.cycle_info)
+        self.cycle_info.setFixedHeight(88)
+        self.cycle_info.setPlaceholderText("导入 X/Y 视频后点击开始检测")
+        traffic_right.addWidget(self.cycle_info)
 
         hist_lbl = QLabel("切换记录")
         _ds(hist_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        ctrl_layout.addWidget(hist_lbl)
+        traffic_right.addWidget(hist_lbl)
         self.history_table = QTableWidget(0, 3)
         self.history_table.setHorizontalHeaderLabels(["相位", "时长", "原因"])
         self.history_table.horizontalHeader().setStretchLastSection(True)
@@ -1080,14 +1126,35 @@ class MainWindow(QMainWindow):
         self.history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.history_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.history_table.verticalHeader().setVisible(False)
-        self.history_table.verticalHeader().setDefaultSectionSize(32)
+        self.history_table.verticalHeader().setDefaultSectionSize(28)
         self.history_table.setAlternatingRowColors(True)
-        ctrl_layout.addWidget(self.history_table, 1)
+        self.history_table.setFixedHeight(160)
+        traffic_right.addWidget(self.history_table, 1)
 
-        ctrl_w = QWidget()
-        ctrl_w.setLayout(ctrl_layout)
-        ctrl_w.setMinimumWidth(280)
-        layout.addWidget(ctrl_w)
+        traffic_layout.addLayout(traffic_right, 2)
+        right_col.addWidget(card_traffic, 2)
+
+        self.video_preview = self.video_preview_x
+
+        right_w = QWidget()
+        right_w.setLayout(right_col)
+        bottom.addWidget(right_w, 3)
+
+        layout.addLayout(bottom, 1)
+        self.stack.addWidget(page)
+
+    def _build_traffic_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 24, 24, 24)
+        card = CardWidget("页面说明")
+        card_layout = QVBoxLayout(card)
+        tip = QLabel("交通灯仿真已经合并到“YOLO 视频分析”页面。\n导入 X/Y 两个方向视频后，检测与信号灯联动会在同一页实时展示。")
+        tip.setWordWrap(True)
+        _ds(tip, lambda: f"color: {C_TEXT_SECONDARY.name()}; font-size: 13px;")
+        card_layout.addWidget(tip)
+        layout.addWidget(card)
+        layout.addStretch()
 
         self.stack.addWidget(page)
 
@@ -1108,7 +1175,7 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self):
         self.nav_yolo.clicked.connect(lambda: self._switch_page(0))
-        self.nav_traffic.clicked.connect(lambda: self._switch_page(1))
+        self.nav_traffic.clicked.connect(lambda: self._switch_page(0))
         self.session_list.currentRowChanged.connect(self._on_session_select)
         self.data_source_combo.currentTextChanged.connect(self._on_data_source_changed)
 
@@ -1170,60 +1237,219 @@ class MainWindow(QMainWindow):
         self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
         self.btn_detect.setEnabled(False)
 
-        if self._sim_live_mode:
-            self.detect_status.setText("实时联动仅支持单视频；请先切回默认数据源")
-            self.detect_status.setStyleSheet(f"color: {C_ORANGE.name()}; font-size: 12px;")
-            self.btn_detect.setEnabled(True)
-            self.detecting = False
-            return
-
         self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0, "video_fps": None}
         self._detect_dirty = False
+        self._start_live_sim()
+        self._reset_live_dual_state(video_pairs)
+        self.sim_running = True
+        self.sim_paused = False
+        self.last_tick = time.time()
+        self.data_source_combo.blockSignals(True)
+        self.data_source_combo.setCurrentText("实时检测")
+        self.data_source_combo.blockSignals(False)
 
-        def on_detect_frame(
-            frame_bgr, frame_idx, avg_fps, num_objects,
-            detections=None, video_fps=None, line_counts=None
-        ):
-            self._detect_latest["bgr"] = frame_bgr
-            self._detect_latest["fps"] = avg_fps
-            self._detect_latest["count"] = num_objects
-            self._detect_latest["idx"] = frame_idx
-            self._detect_latest["line_counts"] = line_counts or {}
-            self._detect_dirty = True
-            if video_fps:
-                self._detect_latest["video_fps"] = video_fps
-            if detections:
-                with self._live_frames_lock:
-                    self._live_frames.append({
-                        "frame": frame_idx,
-                        "detections": detections,
-                    })
+        def on_detect_frame(direction, frame_bgr, frame_idx, avg_fps, num_objects, video_fps, line_counts, backend):
+            direction = str(direction).upper()
+            with self._live_dual_lock:
+                state = self._live_dual_state.setdefault(direction, self._new_live_direction_state())
+                state["frame_bgr"] = frame_bgr
+                state["frame_idx"] = frame_idx
+                state["fps"] = avg_fps
+                state["num_objects"] = num_objects
+                state["line_count_total"] = int((line_counts or {}).get("line_count_total", 0))
+                state["line_count_in"] = int((line_counts or {}).get("line_count_in", 0))
+                state["line_count_out"] = int((line_counts or {}).get("line_count_out", 0))
+                state["video_fps"] = float(video_fps or state.get("video_fps") or 30.0)
+                state["backend"] = backend
+            self._live_dual_dirty = True
 
         def run_detect():
-            orig = (cv2.imshow, cv2.waitKey, cv2.destroyAllWindows)
+            outputs = []
+            streams = {}
             try:
-                cv2.imshow = lambda *_a, **_k: None
-                cv2.waitKey = lambda *_a, **_k: -1
-                cv2.destroyAllWindows = lambda: None
-
                 import main as yolo
                 cwd = os.getcwd()
-                outputs = []
                 os.chdir(str(PROJECT_ROOT))
                 try:
-                    for idx, (direction, video_path) in enumerate(video_pairs, start=1):
-                        self.detect_progress = {
-                            "status": "running",
-                            "current": idx,
-                            "total": 2,
-                            "direction": direction,
-                        }
+                    detector = yolo.load_detector()
+                    backend = detector["backend"]
+
+                    for direction, video_path in video_pairs:
+                        cap = cv2.VideoCapture(video_path)
+                        if not cap.isOpened():
+                            raise FileNotFoundError(f"无法打开视频源: {video_path}")
+                        fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
                         basename = Path(video_path).stem
                         output_path = str(TEST_OUTPUT_DIR / f"output_{direction}_{basename}.mp4")
-                        result = yolo.detect_video(video_path, output_path, frame_callback=on_detect_frame)
-                        result["direction"] = direction
-                        result["source_path"] = video_path
-                        outputs.append(result)
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                        writer = cv2.VideoWriter(output_path, fourcc, max(1.0, fps), (width, height))
+                        streams[direction] = {
+                            "source_path": video_path,
+                            "output_path": output_path,
+                            "cap": cap,
+                            "writer": writer,
+                            "fps": max(1.0, fps),
+                            "width": width,
+                            "height": height,
+                            "frame_count": 0,
+                            "fps_list": [],
+                            "total_detections": 0,
+                            "tracker": yolo.SimpleTracker(),
+                            "line_counter": yolo.LineCounter(),
+                            "last_boxes": [],
+                            "last_confidences": [],
+                            "last_class_ids": [],
+                            "done": False,
+                            "next_due": 0.0,
+                            "backend": backend,
+                        }
+                        with self._live_dual_lock:
+                            state = self._live_dual_state.setdefault(direction, self._new_live_direction_state())
+                            state["source"] = video_path
+                            state["video_fps"] = max(1.0, fps)
+                            state["backend"] = backend
+
+                    start_ts = time.time()
+                    while True:
+                        any_pending = False
+                        clock = time.time() - start_ts
+                        for direction, stream in streams.items():
+                            if stream["done"]:
+                                continue
+                            any_pending = True
+                            if clock + 1e-6 < stream["next_due"]:
+                                continue
+
+                            ret, frame = stream["cap"].read()
+                            if not ret:
+                                stream["done"] = True
+                                with self._live_dual_lock:
+                                    self._live_dual_state[direction]["done"] = True
+                                self._live_dual_dirty = True
+                                continue
+
+                            stream["next_due"] += 1.0 / max(stream["fps"], 1.0)
+                            frame_no = stream["frame_count"]
+                            step_start = time.time()
+
+                            is_real_detection = (frame_no % yolo.SKIP_FRAMES == 0)
+                            if is_real_detection:
+                                boxes, confidences, class_ids = yolo.process_frame(frame, detector)
+                                stream["last_boxes"] = boxes
+                                stream["last_confidences"] = confidences
+                                stream["last_class_ids"] = class_ids
+                            else:
+                                boxes = stream["last_boxes"]
+                                confidences = stream["last_confidences"]
+                                class_ids = stream["last_class_ids"]
+
+                            track_ids = stream["tracker"].update(boxes, class_ids)
+                            stream["line_counter"].update(
+                                boxes, class_ids, track_ids, stream["width"], stream["height"]
+                            )
+                            line_info = stream["line_counter"].get_line_info(stream["width"], stream["height"])
+
+                            if boxes:
+                                result_frame = yolo.draw_detections(
+                                    frame.copy(), boxes, confidences, class_ids, yolo.CLASS_NAMES, track_ids=track_ids
+                                )
+                            else:
+                                result_frame = frame.copy()
+                            result_frame = yolo.draw_counting_line(
+                                result_frame,
+                                line_info,
+                                stream["line_counter"].total_count,
+                                stream["line_counter"].count_in,
+                                stream["line_counter"].count_out,
+                            )
+                            cv2.putText(
+                                result_frame,
+                                f"{direction} FPS: {0.0:.1f}",
+                                (10, 30),
+                                yolo.DISPLAY_LABEL_FONT,
+                                0.8,
+                                (0, 0, 255),
+                                2,
+                            )
+                            cv2.putText(
+                                result_frame,
+                                f"Objects: {len(boxes)}",
+                                (10, 60),
+                                yolo.DISPLAY_LABEL_FONT,
+                                0.8,
+                                (0, 0, 255),
+                                2,
+                            )
+
+                            elapsed = time.time() - step_start
+                            avg_fps = 1.0 / elapsed if elapsed > 0 else 0.0
+                            stream["fps_list"].append(avg_fps)
+                            if len(stream["fps_list"]) > 30:
+                                stream["fps_list"].pop(0)
+                            avg_fps = sum(stream["fps_list"]) / len(stream["fps_list"])
+                            cv2.putText(
+                                result_frame,
+                                f"{direction} FPS: {avg_fps:.1f}",
+                                (10, 30),
+                                yolo.DISPLAY_LABEL_FONT,
+                                0.8,
+                                (0, 0, 255),
+                                2,
+                            )
+
+                            if stream["writer"]:
+                                stream["writer"].write(result_frame)
+
+                            stream["frame_count"] += 1
+                            stream["total_detections"] += len(boxes)
+                            on_detect_frame(
+                                direction,
+                                result_frame,
+                                stream["frame_count"],
+                                avg_fps,
+                                len(boxes),
+                                stream["fps"],
+                                {
+                                    "line_count_total": stream["line_counter"].total_count,
+                                    "line_count_in": stream["line_counter"].count_in,
+                                    "line_count_out": stream["line_counter"].count_out,
+                                },
+                                backend,
+                            )
+
+                        if not any_pending:
+                            break
+                        time.sleep(0.001)
+
+                    for direction, stream in streams.items():
+                        final_avg_fps = sum(stream["fps_list"]) / len(stream["fps_list"]) if stream["fps_list"] else 0.0
+                        summary = {
+                            "source": stream["source_path"],
+                            "total_frames": stream["frame_count"],
+                            "avg_fps": round(final_avg_fps, 1),
+                            "total_detections": stream["total_detections"],
+                            "count_method": "line_crossing",
+                            "line_count_total": stream["line_counter"].total_count,
+                            "line_count_in": stream["line_counter"].count_in,
+                            "line_count_out": stream["line_counter"].count_out,
+                            "crossed_class_counts": stream["line_counter"].crossed_class_counts,
+                            "video_info": {
+                                "width": stream["width"],
+                                "height": stream["height"],
+                                "fps": stream["fps"],
+                            },
+                            "model": detector["model_path"],
+                            "backend": stream["backend"],
+                        }
+                        outputs.append({
+                            "direction": direction,
+                            "source_path": stream["source_path"],
+                            "output_path": stream["output_path"],
+                            "session_dir": None,
+                            "summary": summary,
+                        })
                 finally:
                     os.chdir(cwd)
                 pair_session = self._save_direction_pair_session(outputs)
@@ -1235,7 +1461,17 @@ class MainWindow(QMainWindow):
                     "message": f"{str(e)[:200]}\n{traceback.format_exc()[:300]}"
                 }
             finally:
-                cv2.imshow, cv2.waitKey, cv2.destroyAllWindows = orig
+                for stream in streams.values():
+                    try:
+                        if stream.get("cap"):
+                            stream["cap"].release()
+                    except Exception:
+                        pass
+                    try:
+                        if stream.get("writer"):
+                            stream["writer"].release()
+                    except Exception:
+                        pass
                 self.detecting = False
 
         threading.Thread(target=run_detect, daemon=True).start()
@@ -1259,6 +1495,8 @@ class MainWindow(QMainWindow):
             if isinstance(prog, dict) and prog.get("status") == "fail":
                 self.detect_status.setText(prog.get("message", "检测失败"))
                 self.detect_status.setStyleSheet(f"color: {C_RED.name()}; font-size: 12px;")
+                self.sim_running = False
+                self._sim_live_mode = False
             else:
                 outputs = prog.get("outputs", []) if isinstance(prog, dict) else []
                 pair_session = prog.get("pair_session") if isinstance(prog, dict) else None
@@ -1278,9 +1516,11 @@ class MainWindow(QMainWindow):
                 else:
                     self.detect_status.setText(f"检测完成，但结果视频无法播放{backend_text}")
                     self.detect_status.setStyleSheet(f"color: {C_ORANGE.name()}; font-size: 12px;")
+                self.sim_running = False
+                self._sim_live_mode = False
             # 标出检测结束但不停止仿真
-            if self._sim_live_mode:
-                self.cycle_info.setPlaceholderText("检测已结束，仿真继续")
+            if self.cycle_info.toPlainText():
+                self.cycle_info.append("\n检测结束，实时联动停止")
             self._load_sessions()
             if pair_session:
                 self.status_label.setText(f"已生成双方向会话: {Path(pair_session).name}")
@@ -1364,23 +1604,42 @@ class MainWindow(QMainWindow):
         return True
 
     def _video_tick(self):
-        if self.detecting and self._detect_dirty:
-            bgr = self._detect_latest["bgr"]
-            if bgr is not None:
-                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                h, w, ch = rgb.shape
-                qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
-                self.video_preview.set_frame(qimg)
-                fps_val = self._detect_latest["fps"]
-                cnt = self._detect_latest["count"]
-                idx = self._detect_latest["idx"]
-                line_counts = self._detect_latest.get("line_counts", {})
-                crossed = line_counts.get("line_count_total", 0)
+        if self._live_dual_dirty:
+            with self._live_dual_lock:
+                live_state = {
+                    direction: dict(values)
+                    for direction, values in self._live_dual_state.items()
+                }
+            x_state = live_state.get("X", {})
+            y_state = live_state.get("Y", {})
+            self._set_preview_frame(self.video_preview_x, x_state.get("frame_bgr"))
+            self._set_preview_frame(self.video_preview_y, y_state.get("frame_bgr"))
+
+            x_count = int(x_state.get("line_count_total", 0))
+            y_count = int(y_state.get("line_count_total", 0))
+            total_count = x_count + y_count
+            total_frames = int(x_state.get("frame_idx", 0)) + int(y_state.get("frame_idx", 0))
+            total_objects = int(x_state.get("num_objects", 0)) + int(y_state.get("num_objects", 0))
+            avg_fps = (float(x_state.get("fps", 0.0)) + float(y_state.get("fps", 0.0))) / 2.0
+
+            self.stat_frames.set_value(str(total_frames))
+            self.stat_detections.set_value(str(total_objects))
+            self.stat_vehicles.set_value(str(total_count))
+            self.stat_x_count.set_value(str(x_count))
+            self.stat_y_count.set_value(str(y_count))
+            self.stat_fps.set_value(f"{avg_fps:.1f}")
+            self.session_detail.setText(
+                f"实时双视频联动\n"
+                f"X视频: {Path(str(x_state.get('source', 'X'))).name}  后端: {self._backend_label(x_state.get('backend'))}\n"
+                f"Y视频: {Path(str(y_state.get('source', 'Y'))).name}  后端: {self._backend_label(y_state.get('backend'))}\n"
+                f"X过线:{x_count}  Y过线:{y_count}  总过线:{total_count}"
+            )
+            if self.detecting:
                 self.detect_status.setText(
-                    f"检测中... 帧{idx}  FPS:{fps_val:.0f}  目标:{cnt}  过线:{crossed}"
+                    f"实时检测中... X过线:{x_count}  Y过线:{y_count}  当前目标:{total_objects}"
                 )
                 self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
-            self._detect_dirty = False
+            self._live_dual_dirty = False
             return
 
         if not self.video_playing or not self.video_cap:
@@ -1407,6 +1666,10 @@ class MainWindow(QMainWindow):
             self.video_cap.release()
             self.video_cap = None
         self.video_preview.clear()
+        if hasattr(self, "video_preview_x"):
+            self.video_preview_x.clear()
+        if hasattr(self, "video_preview_y"):
+            self.video_preview_y.clear()
         self.btn_play.setText("▶ 播放")
 
     # ── 检测记录 ─────────────────────────────────────────
@@ -1492,6 +1755,8 @@ class MainWindow(QMainWindow):
         self.stat_frames.set_value(str(frames))
         self.stat_detections.set_value(str(total))
         self.stat_vehicles.set_value(str(vehicle_count))
+        self.stat_x_count.set_value(str(vehicle_count))
+        self.stat_y_count.set_value("--")
         self.stat_fps.set_value(str(round(fps_val, 1)))
 
         self.class_table.setRowCount(0)
@@ -1546,6 +1811,8 @@ class MainWindow(QMainWindow):
         self.stat_frames.set_value(str(total_frames))
         self.stat_detections.set_value(str(total_detections))
         self.stat_vehicles.set_value(str(total_count))
+        self.stat_x_count.set_value(str(x_count))
+        self.stat_y_count.set_value(str(y_count))
         self.stat_fps.set_value("--")
 
         self.class_table.setRowCount(0)
@@ -1591,17 +1858,17 @@ class MainWindow(QMainWindow):
         """武装实时模式——等待视频检测开始后才真正启动仿真。"""
         self._sim_live_mode = True
         self.va_controller.reset()
-        self.feature_extractor = FrameFeatures(fps=30.0)
+        self.va_features = None
         self.va_frame_index = 0
         self.va_sim_time = 0.0
         with self._live_frames_lock:
             self._live_frames.clear()
-        # 不设 sim_running，等 _on_start_detect 触发
+        self._reset_live_dual_state()
         self.btn_start_sim.setEnabled(True)
         self.btn_pause_sim.setEnabled(True)
         self.speed_slider.setEnabled(False)
         self.speed_val.setText("1x（实时）")
-        self.cycle_info.setPlaceholderText("等待视频检测开始...")
+        self.cycle_info.setPlaceholderText("等待双视频实时检测开始...")
 
     def _stop_live_sim(self):
         """停止实时仿真并重置 UI。"""
@@ -1692,6 +1959,51 @@ class MainWindow(QMainWindow):
         self.va_pair_wait_x = 0.0
         self.va_pair_wait_y = 0.0
 
+    def _build_live_dual_features(self, dt):
+        with self._live_dual_lock:
+            x_state = dict(self._live_dual_state.get("X", {}))
+            y_state = dict(self._live_dual_state.get("Y", {}))
+
+        queue_x = int(x_state.get("num_objects", 0))
+        queue_y = int(y_state.get("num_objects", 0))
+        total_x = int(x_state.get("line_count_total", 0))
+        total_y = int(y_state.get("line_count_total", 0))
+        delta_x = max(0, total_x - self._live_dual_last_totals["X"])
+        delta_y = max(0, total_y - self._live_dual_last_totals["Y"])
+        self._live_dual_last_totals["X"] = total_x
+        self._live_dual_last_totals["Y"] = total_y
+
+        if queue_x > 0 or delta_x > 0:
+            self._live_dual_gap_x = 0.0
+        else:
+            self._live_dual_gap_x += dt
+        if queue_y > 0 or delta_y > 0:
+            self._live_dual_gap_y = 0.0
+        else:
+            self._live_dual_gap_y += dt
+
+        phase = self.va_controller.get_state().get("phase", "X")
+        if phase == "X":
+            self._live_dual_wait_x = max(0.0, self._live_dual_wait_x - dt * max(queue_x, 1) * 0.4)
+            self._live_dual_wait_y += dt * (queue_y + delta_y)
+        else:
+            self._live_dual_wait_y = max(0.0, self._live_dual_wait_y - dt * max(queue_y, 1) * 0.4)
+            self._live_dual_wait_x += dt * (queue_x + delta_x)
+
+        return {
+            "queue_x": queue_x,
+            "queue_y": queue_y,
+            "wait_x": self._live_dual_wait_x,
+            "wait_y": self._live_dual_wait_y,
+            "gap_x": self._live_dual_gap_x,
+            "gap_y": self._live_dual_gap_y,
+            "arrival_x": float(delta_x) / max(dt, 1e-3),
+            "arrival_y": float(delta_y) / max(dt, 1e-3),
+            "line_count_x": total_x,
+            "line_count_y": total_y,
+            "calibrated": True,
+        }
+
     def _build_pair_features(self, dt):
         """基于双方向视频聚合计数构造控制器输入。"""
         summary = self.va_pair_summary or {}
@@ -1724,30 +2036,11 @@ class MainWindow(QMainWindow):
 
         # ── 实时检测模式 ──
         if self._sim_live_mode:
-            # 1. 同步视频 FPS
-            vfps = self._detect_latest.get("video_fps")
-            if vfps:
-                self.feature_extractor.fps = float(vfps)
-
-            # 2. 新帧 → 更新特征提取器
-            with self._live_frames_lock:
-                frames = list(self._live_frames)
-                self._live_frames.clear()
-
-            for fd in frames:
-                self.va_features = self.feature_extractor.process_frame(fd)
-
-            # 2. 墙钟 dt 驱动控制器（实时模式固定 1x 速度）
             now = time.time()
             dt = now - self.last_tick
             self.last_tick = now
-
-            feats = self.va_features or {
-                "queue_x": 0, "queue_y": 0,
-                "wait_x": 0.0, "wait_y": 0.0,
-                "gap_x": 0.0, "gap_y": 0.0,
-                "arrival_x": 0.0, "arrival_y": 0.0,
-            }
+            self.va_features = self._build_live_dual_features(dt)
+            feats = self.va_features
 
             x_light, y_light, countdown = self.va_controller.step(
                 feats["queue_x"], feats["queue_y"],
@@ -1862,15 +2155,23 @@ class MainWindow(QMainWindow):
             )
 
         mode_tag = "实时" if self._sim_live_mode else ("双视频" if self.va_pair_summary is not None else "VA")
-        self.cycle_info.setText(
-            f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
-            f"X数量:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
-            f"清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
-            f"Y数量:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
-            f"清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
-            f"绿灯已过:{state['phase_elapsed']:.1f}s  "
-            f"标定:{'✓' if feats.get('calibrated') else '…'}"
-        )
+        if self._sim_live_mode:
+            self.cycle_info.setText(
+                f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
+                f"X过线:{feats.get('line_count_x', 0)}  当前目标:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s\n"
+                f"Y过线:{feats.get('line_count_y', 0)}  当前目标:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s\n"
+                f"X到达:{feats['arrival_x']:.1f}/s  Y到达:{feats['arrival_y']:.1f}/s  绿灯已过:{state['phase_elapsed']:.1f}s"
+            )
+        else:
+            self.cycle_info.setText(
+                f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
+                f"X数量:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
+                f"清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
+                f"Y数量:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
+                f"清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
+                f"绿灯已过:{state['phase_elapsed']:.1f}s  "
+                f"标定:{'✓' if feats.get('calibrated') else '…'}"
+            )
 
         history = self.va_controller.get_history()
         if history:

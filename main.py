@@ -5,6 +5,7 @@ YOLOv26 实现代码
 """
 
 from pathlib import Path
+import math
 import re
 
 import openvino as ov
