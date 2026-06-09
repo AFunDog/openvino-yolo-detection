@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel,
     QLineEdit, QTextEdit, QFileDialog, QSlider, QComboBox, QListWidget,
     QProgressBar, QTableWidget, QSizePolicy, QAbstractItemView,
-    QHeaderView,
+    QHeaderView, QTableWidgetItem,
 )
 
 from gui.theme import *
@@ -59,6 +59,10 @@ class _UIBuilderHost(Protocol):
     cycle_info: Any
     history_table: Any
     status_label: Any
+    x_info_view: Any
+    y_info_view: Any
+    x_class_table: Any
+    y_class_table: Any
 
     def _btn_style(self, bg_color, radius=6): ...
     def _switch_page(self, idx): ...
@@ -71,6 +75,7 @@ class _UIBuilderHost(Protocol):
     def _on_session_select(self, row): ...
     def _on_session_context_menu(self, pos): ...
     def _on_data_source_changed(self, text): ...
+    def _fill_class_table(self, table, counts): ...
 
 
 class UIBuilderMixin:
@@ -219,8 +224,23 @@ class UIBuilderMixin:
         bottom = QHBoxLayout()
         bottom.setSpacing(8)
 
-        left_col = QVBoxLayout()
-        left_col.setSpacing(8)
+        video_col = QVBoxLayout()
+        video_col.setSpacing(8)
+
+        card_video_x = CardWidget("X方向实时画面")
+        video_layout_x = QVBoxLayout(card_video_x)
+        self.video_preview_x = VideoPreviewWidget()
+        video_layout_x.addWidget(self.video_preview_x)
+        video_col.addWidget(card_video_x, 1)
+
+        card_video_y = CardWidget("Y方向实时画面")
+        video_layout_y = QVBoxLayout(card_video_y)
+        self.video_preview_y = VideoPreviewWidget()
+        video_layout_y.addWidget(self.video_preview_y)
+        video_col.addWidget(card_video_y, 1)
+
+        info_col = QVBoxLayout()
+        info_col.setSpacing(8)
 
         card_stats = CardWidget()
         stats_layout = QHBoxLayout(card_stats)
@@ -237,24 +257,13 @@ class UIBuilderMixin:
         stats_layout.addWidget(self.stat_x_count)
         stats_layout.addWidget(self.stat_y_count)
         stats_layout.addWidget(self.stat_fps)
-        left_col.addWidget(card_stats)
+        info_col.addWidget(card_stats)
 
-        card_detail = CardWidget("检测详情")
-        detail_layout = QVBoxLayout(card_detail)
-        self.session_detail = QTextEdit()
-        self.session_detail.setReadOnly(True)
-        self.session_detail.setFixedHeight(70)
-        self.session_detail.setPlaceholderText("从左侧选择一条检测记录")
-        detail_layout.addWidget(self.session_detail)
-        left_col.addWidget(card_detail)
-
-        card_overview = CardWidget("运行概览")
-        overview_layout = QVBoxLayout(card_overview)
-        self.overview_view = QTextEdit()
-        self.overview_view.setReadOnly(True)
-        self.overview_view.setFixedHeight(112)
-        self.overview_view.setPlaceholderText("等待实时数据...")
-        _ds(self.overview_view, lambda: f"""
+        self.x_info_view = QTextEdit()
+        self.x_info_view.setReadOnly(True)
+        self.x_info_view.setMinimumHeight(108)
+        self.x_info_view.setPlaceholderText("X 方向车辆信息")
+        _ds(self.x_info_view, lambda: f"""
             QTextEdit {{
                 border: 1px solid {C_SIDEBAR_BORDER};
                 border-radius: 8px;
@@ -264,50 +273,55 @@ class UIBuilderMixin:
                 font-size: 12px;
             }}
         """)
-        overview_layout.addWidget(self.overview_view)
-        left_col.addWidget(card_overview)
+        self.x_class_table = QTableWidget(0, 3)
+        self.x_class_table.setHorizontalHeaderLabels(["类别", "数量", "占比"])
+        self.x_class_table.horizontalHeader().setStretchLastSection(True)
+        self.x_class_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.x_class_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.x_class_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.x_class_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.x_class_table.verticalHeader().setVisible(False)
+        self.x_class_table.verticalHeader().setDefaultSectionSize(28)
+        self.x_class_table.setAlternatingRowColors(True)
+        self.x_class_table.setMinimumHeight(220)
+        card_x_info = CardWidget("X 方向车辆统计")
+        card_x_info.setMinimumHeight(340)
+        x_info_layout = QVBoxLayout(card_x_info)
+        x_info_layout.addWidget(self.x_info_view)
+        x_info_layout.addWidget(self.x_class_table)
+        info_col.addWidget(card_x_info, 1)
 
-        card_class = CardWidget("类别统计")
-        class_layout = QVBoxLayout(card_class)
-        self.class_table = QTableWidget(0, 3)
-        self.class_table.setHorizontalHeaderLabels(["类别", "数量", "占比"])
-        self.class_table.horizontalHeader().setStretchLastSection(True)
-        self.class_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.class_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.class_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.class_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.class_table.verticalHeader().setVisible(False)
-        self.class_table.verticalHeader().setDefaultSectionSize(32)
-        self.class_table.setAlternatingRowColors(True)
-        self.class_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.class_table.setFixedHeight(216)
-        class_layout.setContentsMargins(0, 0, 0, 0)
-        class_layout.setSpacing(0)
-        class_layout.addWidget(self.class_table)
-        left_col.addWidget(card_class)
-
-        left_w = QWidget()
-        left_w.setLayout(left_col)
-        left_w.setMinimumWidth(320)
-        bottom.addWidget(left_w, 2)
-
-        right_col = QVBoxLayout()
-        preview_row = QHBoxLayout()
-        preview_row.setSpacing(8)
-
-        card_video_x = CardWidget("X方向实时画面")
-        video_layout_x = QVBoxLayout(card_video_x)
-        self.video_preview_x = VideoPreviewWidget()
-        video_layout_x.addWidget(self.video_preview_x)
-        preview_row.addWidget(card_video_x, 1)
-
-        card_video_y = CardWidget("Y方向实时画面")
-        video_layout_y = QVBoxLayout(card_video_y)
-        self.video_preview_y = VideoPreviewWidget()
-        video_layout_y.addWidget(self.video_preview_y)
-        preview_row.addWidget(card_video_y, 1)
-
-        right_col.addLayout(preview_row, 3)
+        self.y_info_view = QTextEdit()
+        self.y_info_view.setReadOnly(True)
+        self.y_info_view.setMinimumHeight(108)
+        self.y_info_view.setPlaceholderText("Y 方向车辆信息")
+        _ds(self.y_info_view, lambda: f"""
+            QTextEdit {{
+                border: 1px solid {C_SIDEBAR_BORDER};
+                border-radius: 8px;
+                padding: 8px 10px;
+                background: {C_DETAIL_BG};
+                color: {C_TEXT_PRIMARY.name()};
+                font-size: 12px;
+            }}
+        """)
+        self.y_class_table = QTableWidget(0, 3)
+        self.y_class_table.setHorizontalHeaderLabels(["类别", "数量", "占比"])
+        self.y_class_table.horizontalHeader().setStretchLastSection(True)
+        self.y_class_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.y_class_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.y_class_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.y_class_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.y_class_table.verticalHeader().setVisible(False)
+        self.y_class_table.verticalHeader().setDefaultSectionSize(28)
+        self.y_class_table.setAlternatingRowColors(True)
+        self.y_class_table.setMinimumHeight(220)
+        card_y_info = CardWidget("Y 方向车辆统计")
+        card_y_info.setMinimumHeight(340)
+        y_info_layout = QVBoxLayout(card_y_info)
+        y_info_layout.addWidget(self.y_info_view)
+        y_info_layout.addWidget(self.y_class_table)
+        info_col.addWidget(card_y_info, 1)
 
         card_traffic = CardWidget("实时交通灯联动")
         traffic_layout = QHBoxLayout(card_traffic)
@@ -444,13 +458,15 @@ class UIBuilderMixin:
         traffic_right.addWidget(self.history_table, 1)
 
         traffic_layout.addLayout(traffic_right, 2)
-        right_col.addWidget(card_traffic, 2)
+        right_col = QVBoxLayout()
+        right_col.setSpacing(8)
+        right_col.addWidget(card_traffic, 1)
 
         self.video_preview = self.video_preview_x
 
-        right_w = QWidget()
-        right_w.setLayout(right_col)
-        bottom.addWidget(right_w, 3)
+        bottom.addLayout(video_col, 3)
+        bottom.addLayout(info_col, 2)
+        bottom.addLayout(right_col, 4)
 
         layout.addLayout(bottom, 1)
         self.stack.addWidget(page)
@@ -502,3 +518,25 @@ class UIBuilderMixin:
             self.video_path_x_input.setText(path)
         else:
             self.video_path_y_input.setText(path)
+
+    @staticmethod
+    def _fill_class_table(table, counts):
+        counts = counts or {}
+        table.setRowCount(0)
+        total = sum(int(v) for v in counts.values())
+        for cls_name, count in sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0]))):
+            row_idx = table.rowCount()
+            table.insertRow(row_idx)
+
+            name_item = QTableWidgetItem(str(cls_name))
+            name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+            table.setItem(row_idx, 0, name_item)
+
+            count_item = QTableWidgetItem(str(int(count)))
+            count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
+            table.setItem(row_idx, 1, count_item)
+
+            pct_val = (int(count) / total * 100) if total else 0
+            pct_item = QTableWidgetItem(f"{pct_val:.1f}%")
+            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            table.setItem(row_idx, 2, pct_item)

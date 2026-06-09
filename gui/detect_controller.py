@@ -93,9 +93,10 @@ class DetectControllerMixin:
         self.data_source_combo.setCurrentText("实时检测")
         self.data_source_combo.blockSignals(False)
 
-        def on_detect_frame(direction, frame_bgr, frame_idx, avg_fps, num_objects, video_fps, line_counts, backend):
+        def on_detect_frame(direction, frame_bgr, frame_idx, avg_fps, num_objects, video_fps, line_counts, class_counts, backend):
             direction = str(direction).upper()
             counts = line_counts or {}
+            class_counts = class_counts or {}
             with self._live_dual_lock:
                 state = self._live_dual_state.setdefault(direction, self._new_live_direction_state())
                 state["frame_bgr"] = frame_bgr
@@ -110,6 +111,10 @@ class DetectControllerMixin:
                 state["line_count_in"] = state["track_count_keep"]
                 state["line_count_slow"] = state["track_count_slow"]
                 state["line_count_out"] = state["track_count_filtered"]
+                state["frame_class_counts"] = dict(class_counts.get("frame_class_counts", {}))
+                state["class_counts"] = dict(class_counts.get("crossed_class_counts", class_counts.get("class_counts", {})))
+                state["slow_class_counts"] = dict(class_counts.get("slow_class_counts", {}))
+                state["filtered_class_counts"] = dict(class_counts.get("filtered_class_counts", {}))
                 state["axis"] = counts.get("axis")
                 state["axis_ready"] = bool(counts.get("axis_ready", False))
                 state["video_fps"] = float(video_fps or state.get("video_fps") or 30.0)
@@ -209,6 +214,10 @@ class DetectControllerMixin:
                             kept_class_ids = [class_ids[i] for i in kept_indices]
                             kept_track_ids = [track_ids[i] for i in kept_indices]
                             filter_info = stream["direction_filter"].get_filter_info(stream["width"], stream["height"])
+                            frame_class_counts = {}
+                            for cls_id in kept_class_ids:
+                                class_name = yolo.CLASS_NAMES[cls_id] if 0 <= cls_id < len(yolo.CLASS_NAMES) else f"class_{cls_id}"
+                                frame_class_counts[class_name] = frame_class_counts.get(class_name, 0) + 1
 
                             if kept_boxes:
                                 result_frame = yolo.draw_detections(
@@ -224,39 +233,20 @@ class DetectControllerMixin:
                                 filter_result["track_count_filtered"],
                                 filter_result.get("track_count_slow", 0),
                             )
-                            cv2.putText(
-                                result_frame,
-                                f"{direction} FPS: {0.0:.1f}",
-                                (10, 30),
-                                yolo.DISPLAY_LABEL_FONT,
-                                0.8,
-                                (0, 0, 255),
-                                2,
-                            )
-                            cv2.putText(
-                                result_frame,
-                                f"Valid: {len(kept_boxes)}  Raw: {len(boxes)}",
-                                (10, 60),
-                                yolo.DISPLAY_LABEL_FONT,
-                                0.8,
-                                (0, 0, 255),
-                                2,
-                            )
-
                             elapsed = time.time() - step_start
                             avg_fps = 1.0 / elapsed if elapsed > 0 else 0.0
                             stream["fps_list"].append(avg_fps)
                             if len(stream["fps_list"]) > 30:
                                 stream["fps_list"].pop(0)
                             avg_fps = sum(stream["fps_list"]) / len(stream["fps_list"])
-                            cv2.putText(
+                            result_frame = yolo.draw_info_panel(
                                 result_frame,
-                                f"{direction} FPS: {avg_fps:.1f}",
-                                (10, 30),
-                                yolo.DISPLAY_LABEL_FONT,
-                                0.8,
-                                (0, 0, 255),
-                                2,
+                                [
+                                    f"{direction} FPS: {avg_fps:.1f}",
+                                    f"Valid: {len(kept_boxes)}",
+                                    f"Raw: {len(boxes)}",
+                                ],
+                                origin=(10, 10),
                             )
 
                             if stream["writer"]:
@@ -278,6 +268,12 @@ class DetectControllerMixin:
                                     "track_count_filtered": filter_result["track_count_filtered"],
                                     "axis": filter_result["axis"],
                                     "axis_ready": filter_result["axis_ready"],
+                                },
+                                {
+                                    "crossed_class_counts": filter_result["kept_class_counts"],
+                                    "slow_class_counts": filter_result["slow_class_counts"],
+                                    "filtered_class_counts": filter_result["filtered_class_counts"],
+                                    "frame_class_counts": frame_class_counts,
                                 },
                                 backend,
                             )
@@ -305,6 +301,7 @@ class DetectControllerMixin:
                             "crossed_class_counts": stream["direction_filter"].crossed_class_counts,
                             "slow_class_counts": stream["direction_filter"].slow_class_counts,
                             "filtered_class_counts": stream["direction_filter"].filtered_class_counts,
+                            "class_counts": stream["direction_filter"].crossed_class_counts,
                             "filter_info": filter_info,
                             "video_info": {
                                 "width": stream["width"],

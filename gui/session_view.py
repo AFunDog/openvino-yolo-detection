@@ -32,6 +32,12 @@ class _SessionViewHost(Protocol):
     class_table: Any
     session_detail: Any
     overview_view: Any
+    x_info_view: Any
+    y_info_view: Any
+    x_class_table: Any
+    y_class_table: Any
+
+    def _fill_class_table(self, table, counts): ...
 
     def _backend_label(self, backend): ...
     def _load_sessions(self) -> None: ...
@@ -183,33 +189,34 @@ class SessionViewMixin:
         self.stat_y_count.set_value("--")
         self.stat_fps.set_value(str(round(fps_val, 1)))
 
-        self.class_table.setRowCount(0)
-        unique_total = sum(unique_counts.values())
-        for cls, count in sorted(unique_counts.items(), key=lambda x: -x[1]):
-            pct_val = (count / unique_total * 100) if unique_total else 0
-            pct = f"{pct_val:.1f}%"
-            row_idx = self.class_table.rowCount()
-            self.class_table.insertRow(row_idx)
+        if hasattr(self, "class_table"):
+            self.class_table.setRowCount(0)
+            unique_total = sum(unique_counts.values())
+            for cls, count in sorted(unique_counts.items(), key=lambda x: -x[1]):
+                pct_val = (count / unique_total * 100) if unique_total else 0
+                pct = f"{pct_val:.1f}%"
+                row_idx = self.class_table.rowCount()
+                self.class_table.insertRow(row_idx)
 
-            name_item = QTableWidgetItem(cls)
-            name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.class_table.setItem(row_idx, 0, name_item)
+                name_item = QTableWidgetItem(cls)
+                name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                self.class_table.setItem(row_idx, 0, name_item)
 
-            count_item = QTableWidgetItem(str(count))
-            count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
-            self.class_table.setItem(row_idx, 1, count_item)
+                count_item = QTableWidgetItem(str(count))
+                count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
+                self.class_table.setItem(row_idx, 1, count_item)
 
-            pct_item = QTableWidgetItem(pct)
-            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-            if pct_val >= 50:
-                pct_item.setForeground(QBrush(QColor(22, 163, 74)))
-            elif pct_val >= 20:
-                pct_item.setForeground(QBrush(QColor(37, 99, 235)))
-            elif pct_val >= 5:
-                pct_item.setForeground(QBrush(QColor(202, 138, 4)))
-            else:
-                pct_item.setForeground(QBrush(QColor(107, 114, 128)))
-            self.class_table.setItem(row_idx, 2, pct_item)
+                pct_item = QTableWidgetItem(pct)
+                pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+                if pct_val >= 50:
+                    pct_item.setForeground(QBrush(QColor(22, 163, 74)))
+                elif pct_val >= 20:
+                    pct_item.setForeground(QBrush(QColor(37, 99, 235)))
+                elif pct_val >= 5:
+                    pct_item.setForeground(QBrush(QColor(202, 138, 4)))
+                else:
+                    pct_item.setForeground(QBrush(QColor(107, 114, 128)))
+                self.class_table.setItem(row_idx, 2, pct_item)
 
         info = (
             f"视频源: {summary.get('source', 'N/A')}\n"
@@ -218,13 +225,25 @@ class SessionViewMixin:
             f"总帧数: {frames}  总检测: {total}\n"
             f"有效总数: {vehicle_count}  通过:{count_in}  过滤:{count_out}  FPS: {fps_val:.1f}"
         )
-        self.session_detail.setText(info)
-        self.overview_view.setText(
-            f"会话: 单视频轨迹过滤\n"
-            f"总帧数: {frames}  总检测: {total}\n"
-            f"有效车辆: {vehicle_count}  通过:{count_in}  过滤:{count_out}\n"
-            f"后端: {backend_label}  分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}"
-        )
+        if hasattr(self, "x_info_view"):
+            self.x_info_view.setText(
+                f"视频: {Path(str(s.get('path', 'N/A'))).name}\n"
+                f"后端: {backend_label}\n"
+                f"有效总数: {vehicle_count}\n"
+                f"通过:{count_in}  过滤:{count_out}\n"
+                f"类别统计: {', '.join(f'{k}={v}' for k, v in sorted(unique_counts.items())) or '暂无'}"
+            )
+            self.y_info_view.setText("该记录为单视频会话，未包含 Y 方向统计")
+            self._fill_class_table(self.x_class_table, unique_counts)
+            self._fill_class_table(self.y_class_table, {})
+        if hasattr(self, "session_detail"):
+            self.session_detail.setText(info)
+            self.overview_view.setText(
+                f"会话: 单视频轨迹过滤\n"
+                f"总帧数: {frames}  总检测: {total}\n"
+                f"有效车辆: {vehicle_count}  通过:{count_in}  过滤:{count_out}\n"
+                f"后端: {backend_label}  分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}"
+            )
 
     def _render_direction_pair_session(self: _SessionViewHost, summary):
         direction_videos = summary.get("direction_videos", {})
@@ -245,25 +264,6 @@ class SessionViewMixin:
         self.stat_y_count.set_value(str(y_count))
         self.stat_fps.set_value("--")
 
-        self.class_table.setRowCount(0)
-        rows = [("X方向有效", x_count), ("Y方向有效", y_count)]
-        for label, count in rows:
-            pct_val = (count / total_count * 100) if total_count else 0.0
-            row_idx = self.class_table.rowCount()
-            self.class_table.insertRow(row_idx)
-
-            name_item = QTableWidgetItem(label)
-            name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            self.class_table.setItem(row_idx, 0, name_item)
-
-            count_item = QTableWidgetItem(str(count))
-            count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
-            self.class_table.setItem(row_idx, 1, count_item)
-
-            pct_item = QTableWidgetItem(f"{pct_val:.1f}%")
-            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-            self.class_table.setItem(row_idx, 2, pct_item)
-
         info = (
             f"类型: 同一路口双方向视频\n"
             f"X视频: {Path(str(x_info.get('source', 'N/A'))).name}\n"
@@ -273,10 +273,46 @@ class SessionViewMixin:
             f"总有效车数: {total_count}\n"
             f"可直接作为交通灯仿真的 X / Y 决策输入"
         )
-        self.session_detail.setText(info)
-        self.overview_view.setText(
-            f"会话: 双方向聚合\n"
-            f"X有效:{x_count}  Y有效:{y_count}  总有效:{total_count}\n"
-            f"总帧数: {total_frames}  总检测: {total_detections}\n"
-            f"后端: X={x_backend} / Y={y_backend}"
-        )
+        if hasattr(self, "x_info_view"):
+            x_counts = dict(x_info.get("crossed_class_counts", x_info.get("class_counts", {})))
+            y_counts = dict(y_info.get("crossed_class_counts", y_info.get("class_counts", {})))
+            self.x_info_view.setText(
+                f"视频: {Path(str(x_info.get('source', 'N/A'))).name}\n"
+                f"后端: {x_backend}\n"
+                f"有效车辆: {x_count}\n"
+                f"类别统计: {', '.join(f'{k}={v}' for k, v in sorted(x_counts.items())) or '暂无'}"
+            )
+            self.y_info_view.setText(
+                f"视频: {Path(str(y_info.get('source', 'N/A'))).name}\n"
+                f"后端: {y_backend}\n"
+                f"有效车辆: {y_count}\n"
+                f"类别统计: {', '.join(f'{k}={v}' for k, v in sorted(y_counts.items())) or '暂无'}"
+            )
+            self._fill_class_table(self.x_class_table, x_counts)
+            self._fill_class_table(self.y_class_table, y_counts)
+        if hasattr(self, "session_detail") and hasattr(self, "class_table"):
+            self.class_table.setRowCount(0)
+            rows = [("X方向有效", x_count), ("Y方向有效", y_count)]
+            for label, count in rows:
+                pct_val = (count / total_count * 100) if total_count else 0.0
+                row_idx = self.class_table.rowCount()
+                self.class_table.insertRow(row_idx)
+
+                name_item = QTableWidgetItem(label)
+                name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                self.class_table.setItem(row_idx, 0, name_item)
+
+                count_item = QTableWidgetItem(str(count))
+                count_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
+                self.class_table.setItem(row_idx, 1, count_item)
+
+                pct_item = QTableWidgetItem(f"{pct_val:.1f}%")
+                pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+                self.class_table.setItem(row_idx, 2, pct_item)
+            self.session_detail.setText(info)
+            self.overview_view.setText(
+                f"会话: 双方向聚合\n"
+                f"X有效:{x_count}  Y有效:{y_count}  总有效:{total_count}\n"
+                f"总帧数: {total_frames}  总检测: {total_detections}\n"
+                f"后端: X={x_backend} / Y={y_backend}"
+            )

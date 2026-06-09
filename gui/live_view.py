@@ -54,6 +54,10 @@ class _LiveViewHost(Protocol):
     btn_pause_sim: Any
     data_source_combo: Any
     metrics_view: Any
+    x_info_view: Any
+    y_info_view: Any
+    x_class_table: Any
+    y_class_table: Any
     overview_view: Any
     phase_label: Any
     xl_indicator: Any
@@ -73,6 +77,7 @@ class _LiveViewHost(Protocol):
     _new_live_direction_state: Any
     _reset_live_dual_state: Any
     _backend_label: Any
+    _fill_class_table: Any
 
 
 class LiveViewMixin:
@@ -350,7 +355,8 @@ class LiveViewMixin:
             f"Y: count={feats['queue_y']}\n"
             f"有效: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}"
         )
-        self.overview_view.setText(overview_text)
+        if hasattr(self, "overview_view"):
+            self.overview_view.setText(overview_text)
 
         if self._sim_live_mode:
             self.cycle_info.setText(
@@ -424,22 +430,34 @@ class LiveViewMixin:
             total_frames = int(x_state.get("frame_idx", 0)) + int(y_state.get("frame_idx", 0))
             total_objects = int(x_state.get("num_objects", 0)) + int(y_state.get("num_objects", 0))
             avg_fps = (float(x_state.get("fps", 0.0)) + float(y_state.get("fps", 0.0))) / 2.0
+            x_counts = dict(x_state.get("frame_class_counts", x_state.get("class_counts", x_state.get("crossed_class_counts", {}))))
+            y_counts = dict(y_state.get("frame_class_counts", y_state.get("class_counts", y_state.get("crossed_class_counts", {}))))
+            x_valid = int(x_state.get("num_objects", 0))
+            y_valid = int(y_state.get("num_objects", 0))
 
             self.stat_frames.set_value(str(total_frames))
             self.stat_detections.set_value(str(total_objects))
-            self.stat_vehicles.set_value(str(total_count))
-            self.stat_x_count.set_value(str(x_count))
-            self.stat_y_count.set_value(str(y_count))
+            self.stat_vehicles.set_value(str(total_objects))
+            self.stat_x_count.set_value(str(x_valid))
+            self.stat_y_count.set_value(str(y_valid))
             self.stat_fps.set_value(f"{avg_fps:.1f}")
-            self.session_detail.setText(
-                f"实时双视频联动\n"
-                f"X视频: {Path(str(x_state.get('source', 'X'))).name}  后端: {self._backend_label(x_state.get('backend'))}\n"
-                f"Y视频: {Path(str(y_state.get('source', 'Y'))).name}  后端: {self._backend_label(y_state.get('backend'))}\n"
-                f"X有效:{x_count}  Y有效:{y_count}  总有效:{total_count}"
+            self.x_info_view.setText(
+                f"视频: {Path(str(x_state.get('source', 'X'))).name}\n"
+                f"后端: {self._backend_label(x_state.get('backend'))}\n"
+                f"当前帧有效车辆: {x_valid}  低速/待定: {int(x_state.get('track_count_slow', 0))}  无效: {int(x_state.get('track_count_filtered', 0))}\n"
+                f"当前帧类别数: {', '.join(f'{k}={v}' for k, v in sorted(x_counts.items())) or '暂无'}"
             )
+            self.y_info_view.setText(
+                f"视频: {Path(str(y_state.get('source', 'Y'))).name}\n"
+                f"后端: {self._backend_label(y_state.get('backend'))}\n"
+                f"当前帧有效车辆: {y_valid}  低速/待定: {int(y_state.get('track_count_slow', 0))}  无效: {int(y_state.get('track_count_filtered', 0))}\n"
+                f"当前帧类别数: {', '.join(f'{k}={v}' for k, v in sorted(y_counts.items())) or '暂无'}"
+            )
+            self._fill_class_table(self.x_class_table, x_counts)
+            self._fill_class_table(self.y_class_table, y_counts)
             if self.detecting:
                 self.detect_status.setText(
-                    f"实时检测中... X有效:{x_count}  Y有效:{y_count}  当前目标:{total_objects}"
+                    f"实时检测中... X当前:{x_valid}  Y当前:{y_valid}  当前目标:{total_objects}"
                 )
                 self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
             self._live_dual_dirty = False

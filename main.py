@@ -17,6 +17,9 @@ import time
 import json
 import csv
 from datetime import datetime
+from functools import lru_cache
+
+from PIL import Image, ImageDraw, ImageFont
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -51,6 +54,10 @@ DISPLAY_LABEL_SCALE = 0.5
 DISPLAY_LABEL_THICKNESS = 2
 DISPLAY_BOX_THICKNESS = 2
 DISPLAY_BOX_COLOR = (0, 255, 0)
+DISPLAY_BOX_COLOR_KEEP = (0, 200, 0)
+DISPLAY_BOX_COLOR_REJECT = (0, 0, 255)
+DISPLAY_BOX_COLOR_SLOW = (0, 165, 255)
+DISPLAY_BOX_COLOR_PENDING = (0, 165, 255)
 DISPLAY_TEXT_COLOR = (0, 0, 0)
 
 # COCO 类别标签 (80类)
@@ -84,6 +91,83 @@ def _safe_name(text):
     return cleaned[:40] or "source"
 
 
+@lru_cache(maxsize=4)
+def _get_font(font_size):
+    """加载中文字体，优先使用 Microsoft YaHei。"""
+    candidates = [
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\msyh.ttf",
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\simsun.ttc",
+    ]
+    for font_path in candidates:
+        if os.path.exists(font_path):
+            try:
+                return ImageFont.truetype(font_path, font_size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
+
+
+def _draw_chinese_labels(img, labels):
+    """使用 PIL 一次性绘制一组中文标签。"""
+    if not labels:
+        return img
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil_img = Image.fromarray(rgb)
+    draw = ImageDraw.Draw(pil_img)
+    font_size = max(12, int(18 * DISPLAY_LABEL_SCALE))
+    font = _get_font(font_size)
+    pad_x = 6
+    pad_y = 4
+    for x, y, label, box_color in labels:
+        bbox = draw.textbbox((0, 0), label, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        bg_left = x
+        bg_top = max(0, y - text_h - pad_y * 2)
+        bg_right = min(pil_img.width, x + text_w + pad_x * 2)
+        bg_bottom = min(pil_img.height, y)
+        draw.rectangle([bg_left, bg_top, bg_right, bg_bottom], fill=tuple(int(v) for v in box_color))
+        text_x = bg_left + pad_x
+        text_y = bg_top + pad_y - bbox[1]
+        draw.text((text_x, text_y), label, font=font, fill=DISPLAY_TEXT_COLOR)
+    return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+
+def draw_info_panel(img, lines, origin=(10, 10), text_color=(255, 0, 0), bg_color=(255, 255, 255), alpha=0.65):
+    """在图像左上角绘制带底色的信息面板。"""
+    if not lines:
+        return img
+    font = DISPLAY_LABEL_FONT
+    font_scale = 0.8
+    thickness = 2
+    padding_x = 8
+    padding_y = 6
+    line_gap = 4
+    widths = []
+    heights = []
+    for line in lines:
+        (w, h), _ = cv2.getTextSize(str(line), font, font_scale, thickness)
+        widths.append(w)
+        heights.append(h)
+    box_w = max(widths) + padding_x * 2
+    box_h = sum(heights) + line_gap * max(0, len(lines) - 1) + padding_y * 2
+
+    overlay = img.copy()
+    x, y = origin
+    cv2.rectangle(overlay, (x, y), (x + box_w, y + box_h), bg_color, -1)
+    cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, img)
+
+    text_y = y + padding_y + heights[0]
+    for idx, line in enumerate(lines):
+        cv2.putText(img, str(line), (x + padding_x, text_y), font, font_scale, text_color, thickness, cv2.LINE_AA)
+        if idx + 1 < len(lines):
+            text_y += heights[idx] + line_gap
+
+    return img
+
+
 # ─── IoU 追踪器（跨帧去重） ─────────────────────────────
 
 def _iou(box_a, box_b):
@@ -99,44 +183,71 @@ def _iou(box_a, box_b):
     return inter / union if union > 0 else 0
 
 
+def _box_center(box):
+    return ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+
+
+def _box_diag(box):
+    return math.hypot(float(box[2] - box[0]), float(box[3] - box[1]))
+
+
 class SimpleTracker:
     """基于 IoU 的简易目标追踪器，用于跨帧去重统计"""
 
-    def __init__(self, iou_threshold=0.3, max_lost=5):
+    def __init__(self, iou_threshold=0.18, max_lost=8):
         self.next_id = 1
-        self.tracks = {}        # track_id -> {"box": [...], "class_id": int, "lost": int}
+        self.tracks = {}        # track_id -> {"box": [...], "center": (x, y), "class_id": int, "lost": int}
         self.iou_threshold = iou_threshold
         self.max_lost = max_lost
         self.unique_class_counts = {}  # 去重后的类别计数
+
+    def _match_score(self, track, box, cls_id):
+        """综合 IoU、中心距离与类别一致性计算匹配分数。"""
+        iou_val = _iou(box, track["box"])
+        cx, cy = _box_center(box)
+        tcx, tcy = track.get("center", _box_center(track["box"]))
+        dist = math.hypot(cx - tcx, cy - tcy)
+        track_diag = max(_box_diag(track["box"]), 1.0)
+        det_diag = max(_box_diag(box), 1.0)
+        scale = max(track_diag, det_diag)
+        center_score = max(0.0, 1.0 - dist / (scale * 1.5))
+        class_bonus = 0.08 if cls_id == track.get("class_id") else 0.0
+        score = 0.55 * iou_val + 0.37 * center_score + class_bonus
+        return score, iou_val, dist
 
     def update(self, boxes, class_ids):
         """更新追踪器，返回每帧每个检测的 track_id"""
         matched_old = set()  # 已匹配的旧轨迹 id
         matched_new = set()  # 已匹配的新检测索引
 
-        # 构建匹配关系：旧轨迹 ↔ 新检测
-        matches = []  # (track_id, new_idx)
+        # 构建候选匹配并按得分从高到低进行贪心分配
+        candidates = []
         for tid, trk in self.tracks.items():
-            best_iou = 0
-            best_idx = -1
             for i, (box, cls) in enumerate(zip(boxes, class_ids)):
-                if i in matched_new or cls != trk["class_id"]:
-                    continue
-                iou_val = _iou(box, trk["box"])
-                if iou_val > best_iou:
-                    best_iou = iou_val
-                    best_idx = i
-            if best_idx >= 0 and best_iou >= self.iou_threshold:
-                matches.append((tid, best_idx))
-                matched_old.add(tid)
-                matched_new.add(best_idx)
+                score, iou_val, dist = self._match_score(trk, box, cls)
+                if score >= self.iou_threshold and (iou_val >= 0.05 or dist <= max(_box_diag(trk["box"]), _box_diag(box)) * 1.8):
+                    candidates.append((score, tid, i, iou_val, dist))
+        candidates.sort(reverse=True, key=lambda item: item[0])
+
+        matches = []  # (track_id, new_idx)
+        for score, tid, idx, _, _ in candidates:
+            if tid in matched_old or idx in matched_new:
+                continue
+            matches.append((tid, idx))
+            matched_old.add(tid)
+            matched_new.add(idx)
 
         # 构建新轨迹字典
         new_tracks = {}
 
         # 更新已匹配的轨迹
         for tid, new_idx in matches:
-            new_tracks[tid] = {"box": boxes[new_idx], "class_id": class_ids[new_idx], "lost": 0}
+            new_tracks[tid] = {
+                "box": boxes[new_idx],
+                "center": _box_center(boxes[new_idx]),
+                "class_id": class_ids[new_idx],
+                "lost": 0,
+            }
 
         # 保留短暂丢失的轨迹
         for tid, trk in self.tracks.items():
@@ -147,14 +258,20 @@ class SimpleTracker:
 
         # 未匹配的新检测 → 分配新 ID
         track_ids = [0] * len(boxes)
-        for tid, new_idx in matches:
+        track_id_map = {new_idx: tid for tid, new_idx in matches}
+        for new_idx, tid in track_id_map.items():
             track_ids[new_idx] = tid
 
         for i, (box, cls) in enumerate(zip(boxes, class_ids)):
             if i not in matched_new:
                 tid = self.next_id
                 self.next_id += 1
-                new_tracks[tid] = {"box": box, "class_id": cls, "lost": 0}
+                new_tracks[tid] = {
+                    "box": box,
+                    "center": _box_center(box),
+                    "class_id": cls,
+                    "lost": 0,
+                }
                 track_ids[i] = tid
                 # 新目标计入去重统计
                 class_name = CLASS_NAMES[cls] if 0 <= cls < len(CLASS_NAMES) else f"class_{cls}"
@@ -167,7 +284,7 @@ class SimpleTracker:
 class TrajectoryDirectionFilter:
     """基于 track_id 的轨迹方向过滤器。"""
 
-    def __init__(self, min_displacement=25.0, angle_threshold_deg=35.0):
+    def __init__(self, min_displacement=4.0, angle_threshold_deg=75.0):
         self.min_displacement = min_displacement
         self.angle_threshold_deg = angle_threshold_deg
         self.min_similarity = math.cos(math.radians(angle_threshold_deg))
@@ -220,20 +337,28 @@ class TrajectoryDirectionFilter:
     def _classify_track(self, state):
         start = state.get("start")
         last = state.get("last")
+        prev = state.get("prev")
+        hits = int(state.get("hits", 0))
         if start is None or last is None:
             return "pending", 0.0, 0.0
 
-        dx = last[0] - start[0]
-        dy = last[1] - start[1]
+        if hits < 2:
+            return "pending", 0.0, 0.0
+
+        ref = prev if prev is not None else start
+        dx = last[0] - ref[0]
+        dy = last[1] - ref[1]
         moved = math.hypot(dx, dy)
         if moved < self.min_displacement:
             return "slow", 0.0, moved
-        if not self.axis_ready:
-            return "pending", 0.0, moved
 
         v = np.array([dx, dy], dtype=np.float32) / max(moved, 1e-6)
-        similarity = float(abs(np.dot(v, self.axis_vec)))
-        return ("keep" if similarity >= self.min_similarity else "reject"), similarity, moved
+        similarity = float(np.dot(v, self.axis_vec))
+        if similarity >= self.min_similarity:
+            return "keep", similarity, moved
+        if similarity <= -self.min_similarity:
+            return "reject", similarity, moved
+        return "reject", similarity, moved
 
     def update(self, boxes, class_ids, track_ids, frame_width, frame_height):
         self._update_axis(frame_width, frame_height)
@@ -255,17 +380,21 @@ class TrajectoryDirectionFilter:
 
             state = self.track_states.setdefault(track_id, {
                 "start": center.copy(),
+                "prev": None,
                 "last": center.copy(),
                 "class_id": int(cls_id),
                 "status": "pending",
                 "similarity": 0.0,
                 "moved": 0.0,
+                "hits": 0,
                 "counted_keep": False,
                 "counted_slow": False,
                 "counted_reject": False,
             })
+            state["prev"] = state.get("last", center).copy()
             state["last"] = center.copy()
             state["class_id"] = int(cls_id)
+            state["hits"] = int(state.get("hits", 0)) + 1
 
             status, similarity, moved = self._classify_track(state)
             state["status"] = status
@@ -643,34 +772,40 @@ def process_frame(frame, detector):
     return [], [], []
 
 
-def draw_detections(img, boxes, confidences, class_ids, classes, track_ids=None):
+def draw_detections(img, boxes, confidences, class_ids, classes, track_ids=None, statuses=None):
     """在图像上绘制检测结果"""
+    label_items = []
     for i, box in enumerate(boxes):
         x1, y1, x2, y2 = map(int, box)
+        status = None
+        if statuses is not None and i < len(statuses):
+            status = str(statuses[i]).lower()
+
+        if status == "keep":
+            box_color = DISPLAY_BOX_COLOR_KEEP
+            status_text = "有效"
+        elif status == "reject":
+            box_color = DISPLAY_BOX_COLOR_REJECT
+            status_text = "无效"
+        elif status == "slow" or status == "pending":
+            box_color = DISPLAY_BOX_COLOR_SLOW
+            status_text = "低速/待定"
+        else:
+            box_color = DISPLAY_BOX_COLOR_PENDING
+            status_text = "待定"
 
         # 绘制边界框
-        cv2.rectangle(img, (x1, y1), (x2, y2), DISPLAY_BOX_COLOR, DISPLAY_BOX_THICKNESS)
+        cv2.rectangle(img, (x1, y1), (x2, y2), box_color, DISPLAY_BOX_THICKNESS)
 
         # 绘制标签
         class_name = classes[class_ids[i]] if 0 <= class_ids[i] < len(classes) else f"class_{class_ids[i]}"
         if track_ids is not None and i < len(track_ids):
-            label = f"ID {track_ids[i]} | {class_name} | {confidences[i]:.2f}"
+            label = f"{status_text} | ID {track_ids[i]} | {class_name} | {confidences[i]:.2f}"
         else:
-            label = f"{class_name} | {confidences[i]:.2f}"
-        (label_w, label_h), _ = cv2.getTextSize(
-            label, DISPLAY_LABEL_FONT, DISPLAY_LABEL_SCALE, DISPLAY_LABEL_THICKNESS
-        )
-        cv2.rectangle(
-            img, (x1, y1 - label_h - 5), (x1 + label_w, y1),
-            DISPLAY_BOX_COLOR, -1
-        )
-        cv2.putText(
-            img, label, (x1, y1 - 5),
-            DISPLAY_LABEL_FONT, DISPLAY_LABEL_SCALE, DISPLAY_TEXT_COLOR,
-            DISPLAY_LABEL_THICKNESS
-        )
+            label = f"{status_text} | {class_name} | {confidences[i]:.2f}"
+        label_items.append((x1, y1, label, box_color))
 
-    return img
+    return _draw_chinese_labels(img, label_items)
 
 
 def draw_counting_line(img, line_info, total_count, count_in, count_out, count_slow=0):
@@ -777,6 +912,7 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         kept_confidences = [confidences[i] for i in kept_indices]
         kept_class_ids = [class_ids[i] for i in kept_indices]
         kept_track_ids = [track_ids[i] for i in kept_indices]
+        track_statuses = [direction_filter.track_states.get(tid, {}).get("status", "pending") for tid in track_ids]
         filter_info = direction_filter.get_filter_info(width, height)
 
         # 记录检测数据
@@ -810,13 +946,14 @@ def detect_video(source=0, output_path=None, frame_callback=None):
             "track_count_filtered": filter_result["track_count_filtered"],
         })
 
-        # 绘制结果
-        if kept_boxes:
+        # 绘制结果：有效/无效车辆分色显示
+        if boxes:
             result_frame = draw_detections(
-                frame.copy(), kept_boxes, kept_confidences, kept_class_ids, CLASS_NAMES, track_ids=kept_track_ids
+                frame.copy(), boxes, confidences, class_ids, CLASS_NAMES,
+                track_ids=track_ids, statuses=track_statuses
             )
         else:
-            result_frame = frame
+            result_frame = frame.copy()
         result_frame = draw_counting_line(
             result_frame,
             filter_info,
@@ -834,13 +971,16 @@ def detect_video(source=0, output_path=None, frame_callback=None):
             fps_list.pop(0)
         avg_fps = sum(fps_list) / len(fps_list)
 
-        # 在画面上显示FPS和检测数量
-        fps_text = f"FPS: {avg_fps:.1f}"
-        count_text = f"Valid Objects: {len(kept_boxes)}  Raw: {len(boxes)}"
-        cv2.putText(result_frame, fps_text, (10, 30),
-                   DISPLAY_LABEL_FONT, 1.0, (0, 0, 255), 2)
-        cv2.putText(result_frame, count_text, (10, 60),
-                   DISPLAY_LABEL_FONT, 1.0, (0, 0, 255), 2)
+        # 在画面左上角显示统计信息面板
+        result_frame = draw_info_panel(
+            result_frame,
+            [
+                f"FPS: {avg_fps:.1f}",
+                f"Valid Objects: {len(kept_boxes)}",
+                f"Raw Objects: {len(boxes)}",
+            ],
+            origin=(10, 10),
+        )
 
         # 显示
         cv2.imshow(DISPLAY_WINDOW_NAME, result_frame)
