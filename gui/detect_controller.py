@@ -6,14 +6,44 @@ import os
 import threading
 import time
 from pathlib import Path
+from typing import Any, Protocol
 
 import cv2
 
 from gui.theme import *
 
 
+class _DetectControllerHost(Protocol):
+    video_path_x_input: Any
+    video_path_y_input: Any
+    detect_status: Any
+    detecting: bool
+    detect_progress: Any
+    _detect_latest: dict
+    _detect_dirty: bool
+    PROJECT_ROOT: Path
+    TEST_OUTPUT_DIR: Path
+    btn_detect: Any
+    btn_play: Any
+    sim_running: bool
+    sim_paused: bool
+    last_tick: float
+    data_source_combo: Any
+    cycle_info: Any
+    status_label: Any
+    _live_dual_lock: threading.Lock
+    _live_dual_state: dict
+    _new_live_direction_state: Any
+    _live_dual_dirty: bool
+
+    def _start_live_sim(self) -> None: ...
+    def _reset_live_dual_state(self, video_pairs=None) -> None: ...
+    def _save_direction_pair_session(self, outputs) -> str: ...
+    def _load_video(self, path) -> bool: ...
+
+
 class DetectControllerMixin:
-    def _on_start_detect(self):
+    def _on_start_detect(self: _DetectControllerHost):
         video_x = self.video_path_x_input.text().strip()
         video_y = self.video_path_y_input.text().strip()
         if not video_x or not video_y:
@@ -106,7 +136,8 @@ class DetectControllerMixin:
                         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
                         basename = Path(video_path).stem
                         output_path = str(self.TEST_OUTPUT_DIR / f"output_{direction}_{basename}.mp4")
-                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                        fourcc_fn = getattr(cv2, "VideoWriter_fourcc")
+                        fourcc = fourcc_fn(*"mp4v")
                         writer = cv2.VideoWriter(output_path, fourcc, max(1.0, fps), (width, height))
                         streams[direction] = {
                             "source_path": video_path,
@@ -316,7 +347,7 @@ class DetectControllerMixin:
 
         threading.Thread(target=run_detect, daemon=True).start()
 
-    def _check_detect_status(self):
+    def _check_detect_status(self: _DetectControllerHost):
         prog = self.detect_progress
         if self.detecting and isinstance(prog, dict) and prog.get("status") == "running":
             self.detect_status.setText(

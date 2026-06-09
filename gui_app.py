@@ -5,8 +5,6 @@ YOLO 智能交通灯控制系统 - PyQt6 桌面应用
 """
 
 import os
-import time
-import math
 import threading
 import sys
 from collections import deque
@@ -35,8 +33,6 @@ os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
 TEST_OUTPUT_DIR = PROJECT_ROOT / "test" / "output"
-
-VEHICLE_CLASSES = {"car", "van", "bus", "truck"}
 
 
 # ─── 主窗口 ──────────────────────────────────────────────
@@ -72,8 +68,6 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
         self.va_sim_time = 0.0
         self.va_features = None
         self.va_pair_summary = None
-        self.va_pair_wait_x = 0.0
-        self.va_pair_wait_y = 0.0
 
         # 视频播放器
         self.video_cap = None
@@ -85,10 +79,6 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
         self._live_dual_lock = threading.Lock()
         self._live_dual_dirty = False
         self._live_dual_state = {"X": {}, "Y": {}}
-        self._live_dual_wait_x = 0.0
-        self._live_dual_wait_y = 0.0
-        self._live_dual_gap_x = 0.0
-        self._live_dual_gap_y = 0.0
         self._live_dual_last_totals = {"X": 0, "Y": 0}
 
         # 实时检测 → 仿真数据管道
@@ -157,10 +147,6 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
         with self._live_dual_lock:
             self._live_dual_state = state
         self._live_dual_dirty = True
-        self._live_dual_wait_x = 0.0
-        self._live_dual_wait_y = 0.0
-        self._live_dual_gap_x = 0.0
-        self._live_dual_gap_y = 0.0
         self._live_dual_last_totals = {"X": 0, "Y": 0}
 
     @staticmethod

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, Protocol
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel,
@@ -17,8 +19,62 @@ from gui.widgets import (
 )
 
 
+class _UIBuilderHost(Protocol):
+    def setCentralWidget(self, widget) -> None: ...
+
+    nav_yolo: Any
+    nav_traffic: Any
+    stack: Any
+    session_list: Any
+    video_path_x_input: Any
+    video_path_y_input: Any
+    btn_detect: Any
+    detect_status: Any
+    btn_play: Any
+    stat_frames: Any
+    stat_detections: Any
+    stat_vehicles: Any
+    stat_x_count: Any
+    stat_y_count: Any
+    stat_fps: Any
+    session_detail: Any
+    overview_view: Any
+    class_table: Any
+    video_preview_x: Any
+    video_preview_y: Any
+    video_preview: Any
+    canvas: Any
+    xl_indicator: Any
+    yl_indicator: Any
+    metrics_view: Any
+    phase_label: Any
+    timer_text: Any
+    progress_bar: Any
+    btn_start_sim: Any
+    btn_pause_sim: Any
+    btn_reset_sim: Any
+    speed_slider: Any
+    speed_val: Any
+    data_source_combo: Any
+    cycle_info: Any
+    history_table: Any
+    status_label: Any
+
+    def _btn_style(self, bg_color, radius=6): ...
+    def _switch_page(self, idx): ...
+    def _on_browse_video(self, direction): ...
+    def _on_start_detect(self): ...
+    def _on_play_video(self): ...
+    def _on_start_sim(self): ...
+    def _on_pause_sim(self): ...
+    def _on_reset_sim(self): ...
+    def _on_session_select(self, row): ...
+    def _on_session_context_menu(self, pos): ...
+    def _on_data_source_changed(self, text): ...
+
+
 class UIBuilderMixin:
-    def _build_ui(self):
+    def _build_ui(self: _UIBuilderHost):
         central = QWidget()
         self.setCentralWidget(central)
         _ds(central, lambda: f"background: {C_BG_BASE.name()};")
@@ -85,7 +141,7 @@ class UIBuilderMixin:
         status_layout.addWidget(brand)
         main_layout.addWidget(status_bar)
 
-    def _build_yolo_page(self):
+    def _build_yolo_page(self: _UIBuilderHost):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(12, 12, 12, 8)
@@ -399,7 +455,7 @@ class UIBuilderMixin:
         layout.addLayout(bottom, 1)
         self.stack.addWidget(page)
 
-    def _build_traffic_page(self):
+    def _build_traffic_page(self: _UIBuilderHost):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -424,18 +480,18 @@ class UIBuilderMixin:
             QPushButton:disabled {{ background: #9ca3af; }}
         """
 
-    def _connect_signals(self):
+    def _connect_signals(self: _UIBuilderHost):
         self.nav_yolo.clicked.connect(lambda: self._switch_page(0))
         self.nav_traffic.clicked.connect(lambda: self._switch_page(0))
         self.session_list.currentRowChanged.connect(self._on_session_select)
         self.data_source_combo.currentTextChanged.connect(self._on_data_source_changed)
 
-    def _switch_page(self, idx):
+    def _switch_page(self: _UIBuilderHost, idx):
         self.stack.setCurrentIndex(idx)
         self.nav_yolo.active = (idx == 0)
         self.nav_traffic.active = (idx == 1)
 
-    def _on_browse_video(self, direction):
+    def _on_browse_video(self: _UIBuilderHost, direction):
         path, _ = QFileDialog.getOpenFileName(
             self, f"选择{direction.upper()}方向监控视频", "",
             "视频文件 (*.mp4 *.avi);;所有文件 (*.*)"

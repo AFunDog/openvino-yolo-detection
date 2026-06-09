@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Protocol
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QBrush
@@ -16,8 +17,30 @@ from gui.utils import load_json
 VEHICLE_CLASSES = {"car", "van", "bus", "truck"}
 
 
+class _SessionViewHost(Protocol):
+    DATA_DIR: Path
+    sessions: list
+    session_list: Any
+    data_source_combo: Any
+    selected_session: Any
+    stat_frames: Any
+    stat_detections: Any
+    stat_vehicles: Any
+    stat_x_count: Any
+    stat_y_count: Any
+    stat_fps: Any
+    class_table: Any
+    session_detail: Any
+    overview_view: Any
+
+    def _backend_label(self, backend): ...
+    def _load_sessions(self) -> None: ...
+    def _render_direction_pair_session(self, summary) -> None: ...
+    def _delete_session(self, row) -> None: ...
+
+
 class SessionViewMixin:
-    def _save_direction_pair_session(self, outputs):
+    def _save_direction_pair_session(self: _SessionViewHost, outputs):
         """将 X/Y 两个方向的视频检测结果聚合为同一路口的一条会话记录。"""
         by_direction = {}
         for item in outputs:
@@ -75,7 +98,7 @@ class SessionViewMixin:
             json.dump(summary, f, ensure_ascii=False, indent=2)
         return str(session_dir)
 
-    def _load_sessions(self):
+    def _load_sessions(self: _SessionViewHost):
         self.sessions = []
         self.session_list.clear()
         if not self.DATA_DIR.exists():
@@ -93,7 +116,7 @@ class SessionViewMixin:
             self.data_source_combo.addItem(s["name"])
         self.data_source_combo.blockSignals(False)
 
-    def _on_session_context_menu(self, pos):
+    def _on_session_context_menu(self: _SessionViewHost, pos):
         item = self.session_list.itemAt(pos)
         if item is None:
             return
@@ -106,7 +129,7 @@ class SessionViewMixin:
         if action == delete_action:
             self._delete_session(row)
 
-    def _delete_session(self, row):
+    def _delete_session(self: _SessionViewHost, row):
         if row < 0 or row >= len(self.sessions):
             return
         s = self.sessions[row]
@@ -125,7 +148,7 @@ class SessionViewMixin:
             shutil.rmtree(session_path)
         self._load_sessions()
 
-    def _on_session_select(self, row):
+    def _on_session_select(self: _SessionViewHost, row):
         if row < 0 or row >= len(self.sessions):
             return
         s = self.sessions[row]
@@ -203,7 +226,7 @@ class SessionViewMixin:
             f"后端: {backend_label}  分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}"
         )
 
-    def _render_direction_pair_session(self, summary):
+    def _render_direction_pair_session(self: _SessionViewHost, summary):
         direction_videos = summary.get("direction_videos", {})
         x_info = direction_videos.get("X", {})
         y_info = direction_videos.get("Y", {})

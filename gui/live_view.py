@@ -13,21 +13,77 @@ import cv2
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QTableWidgetItem
+from typing import Any, Protocol
 
 from gui.theme import *
 from gui.utils import load_json
 from algorithm import load_frames
 
 
+class _LiveViewHost(Protocol):
+    _sim_live_mode: bool
+    _live_frames_lock: threading.Lock
+    _live_frames: Any
+    _live_dual_lock: threading.Lock
+    _live_dual_dirty: bool
+    _live_dual_state: dict
+    _live_dual_last_totals: dict
+    sim_running: bool
+    sim_paused: bool
+    x_light: str
+    y_light: str
+    sim_speed: float
+    last_tick: float
+    va_controller: Any
+    va_features: Any
+    va_frame_index: int
+    va_sim_time: float
+    va_frames: list
+    va_fps: float
+    va_pair_summary: Any
+    feature_extractor: Any
+    DATA_DIR: Path
+    canvas: Any
+    timer_text: Any
+    progress_bar: Any
+    cycle_info: Any
+    history_table: Any
+    speed_slider: Any
+    speed_val: Any
+    btn_start_sim: Any
+    btn_pause_sim: Any
+    data_source_combo: Any
+    metrics_view: Any
+    overview_view: Any
+    phase_label: Any
+    xl_indicator: Any
+    yl_indicator: Any
+    video_preview: Any
+    video_preview_x: Any
+    video_preview_y: Any
+    detect_status: Any
+    btn_play: Any
+    session_detail: Any
+    stat_frames: Any
+    stat_detections: Any
+    stat_vehicles: Any
+    stat_x_count: Any
+    stat_y_count: Any
+    stat_fps: Any
+    _new_live_direction_state: Any
+    _reset_live_dual_state: Any
+    _backend_label: Any
+
+
 class LiveViewMixin:
-    def _on_data_source_changed(self, text):
+    def _on_data_source_changed(self: _LiveViewHost, text):
         """数据源切换：选"实时检测"时自动启停仿真。"""
         if text == "实时检测":
             self._start_live_sim()
         elif self._sim_live_mode:
             self._stop_live_sim()
 
-    def _start_live_sim(self):
+    def _start_live_sim(self: _LiveViewHost):
         """武装实时模式——等待视频检测开始后才真正启动仿真。"""
         self._sim_live_mode = True
         self.va_controller.reset()
@@ -43,7 +99,7 @@ class LiveViewMixin:
         self.speed_val.setText("1x（实时）")
         self.cycle_info.setPlaceholderText("等待双视频实时检测开始...")
 
-    def _stop_live_sim(self):
+    def _stop_live_sim(self: _LiveViewHost):
         """停止实时仿真并重置 UI。"""
         self._sim_live_mode = False
         self.sim_running = False
@@ -66,7 +122,7 @@ class LiveViewMixin:
         self.data_source_combo.setCurrentIndex(0)
         self.data_source_combo.blockSignals(False)
 
-    def _start_va_sim(self):
+    def _start_va_sim(self: _LiveViewHost):
         """初始化离线回放仿真。"""
         sel = self.data_source_combo.currentText()
         self._sim_live_mode = False
@@ -88,10 +144,8 @@ class LiveViewMixin:
         self.feature_extractor.reset()
         self.va_frame_index = 0
         self.va_sim_time = 0.0
-        self.va_pair_wait_x = 0.0
-        self.va_pair_wait_y = 0.0
 
-    def _on_start_sim(self):
+    def _on_start_sim(self: _LiveViewHost):
         if self._sim_live_mode:
             if self.sim_paused:
                 self.sim_paused = False
@@ -108,10 +162,10 @@ class LiveViewMixin:
             self.sim_paused = False
             self.last_tick = time.time()
 
-    def _on_pause_sim(self):
+    def _on_pause_sim(self: _LiveViewHost):
         self.sim_paused = True
 
-    def _on_reset_sim(self):
+    def _on_reset_sim(self: _LiveViewHost):
         if self._sim_live_mode:
             self._stop_live_sim()
             return
@@ -127,10 +181,8 @@ class LiveViewMixin:
         self.va_controller.reset()
         self.feature_extractor.reset()
         self.va_pair_summary = None
-        self.va_pair_wait_x = 0.0
-        self.va_pair_wait_y = 0.0
 
-    def _build_live_dual_features(self, dt):
+    def _build_live_dual_features(self: _LiveViewHost, dt):
         with self._live_dual_lock:
             x_state = dict(self._live_dual_state.get("X", {}))
             y_state = dict(self._live_dual_state.get("Y", {}))
@@ -139,68 +191,31 @@ class LiveViewMixin:
         queue_y = int(y_state.get("num_objects", 0))
         total_x = int(x_state.get("line_count_total", 0))
         total_y = int(y_state.get("line_count_total", 0))
-        delta_x = max(0, total_x - self._live_dual_last_totals["X"])
-        delta_y = max(0, total_y - self._live_dual_last_totals["Y"])
         self._live_dual_last_totals["X"] = total_x
         self._live_dual_last_totals["Y"] = total_y
-
-        if queue_x > 0 or delta_x > 0:
-            self._live_dual_gap_x = 0.0
-        else:
-            self._live_dual_gap_x += dt
-        if queue_y > 0 or delta_y > 0:
-            self._live_dual_gap_y = 0.0
-        else:
-            self._live_dual_gap_y += dt
-
-        phase = self.va_controller.get_state().get("phase", "X")
-        if phase == "X":
-            self._live_dual_wait_x = max(0.0, self._live_dual_wait_x - dt * max(queue_x, 1) * 0.4)
-            self._live_dual_wait_y += dt * (queue_y + delta_y)
-        else:
-            self._live_dual_wait_y = max(0.0, self._live_dual_wait_y - dt * max(queue_y, 1) * 0.4)
-            self._live_dual_wait_x += dt * (queue_x + delta_x)
 
         return {
             "queue_x": queue_x,
             "queue_y": queue_y,
-            "wait_x": self._live_dual_wait_x,
-            "wait_y": self._live_dual_wait_y,
-            "gap_x": self._live_dual_gap_x,
-            "gap_y": self._live_dual_gap_y,
-            "arrival_x": float(delta_x) / max(dt, 1e-3),
-            "arrival_y": float(delta_y) / max(dt, 1e-3),
             "line_count_x": total_x,
             "line_count_y": total_y,
             "calibrated": True,
         }
 
-    def _build_pair_features(self, dt):
+    def _build_pair_features(self: _LiveViewHost, dt):
         summary = self.va_pair_summary or {}
         queue_x = int(summary.get("line_count_x", 0))
         queue_y = int(summary.get("line_count_y", 0))
 
-        phase = self.va_controller.get_state().get("phase", "X")
-        if phase == "X":
-            self.va_pair_wait_x = max(0.0, self.va_pair_wait_x - dt * max(queue_x, 1) * 0.5)
-            self.va_pair_wait_y += dt * queue_y
-        else:
-            self.va_pair_wait_y = max(0.0, self.va_pair_wait_y - dt * max(queue_y, 1) * 0.5)
-            self.va_pair_wait_x += dt * queue_x
-
         return {
             "queue_x": queue_x,
             "queue_y": queue_y,
-            "wait_x": self.va_pair_wait_x,
-            "wait_y": self.va_pair_wait_y,
-            "gap_x": 0.0 if queue_x > 0 else self.va_controller.gap_seconds,
-            "gap_y": 0.0 if queue_y > 0 else self.va_controller.gap_seconds,
-            "arrival_x": float(queue_x),
-            "arrival_y": float(queue_y),
+            "line_count_x": queue_x,
+            "line_count_y": queue_y,
             "calibrated": True,
         }
 
-    def _sim_tick(self):
+    def _sim_tick(self: _LiveViewHost):
         if not self.sim_running or self.sim_paused:
             return
 
@@ -212,8 +227,8 @@ class LiveViewMixin:
             feats = self.va_features
             x_light, y_light, countdown = self.va_controller.step(
                 feats["queue_x"], feats["queue_y"],
-                feats["wait_x"], feats["wait_y"],
-                feats["gap_x"], feats["gap_y"],
+                0.0, 0.0,
+                0.0, 0.0,
                 dt,
             )
             self._update_sim_ui(x_light, y_light, countdown)
@@ -230,8 +245,8 @@ class LiveViewMixin:
             feats = self.va_features
             x_light, y_light, countdown = self.va_controller.step(
                 feats["queue_x"], feats["queue_y"],
-                feats["wait_x"], feats["wait_y"],
-                feats["gap_x"], feats["gap_y"],
+                0.0, 0.0,
+                0.0, 0.0,
                 dt,
             )
             self._update_sim_ui(x_light, y_light, countdown)
@@ -249,26 +264,20 @@ class LiveViewMixin:
 
         feats = self.va_features or {
             "queue_x": 0, "queue_y": 0,
-            "wait_x": 0.0, "wait_y": 0.0,
-            "gap_x": 0.0, "gap_y": 0.0,
-            "arrival_x": 0.0, "arrival_y": 0.0,
         }
 
         x_light, y_light, countdown = self.va_controller.step(
             feats["queue_x"], feats["queue_y"],
-            feats["wait_x"], feats["wait_y"],
-            feats["gap_x"], feats["gap_y"],
+            0.0, 0.0,
+            0.0, 0.0,
             dt,
         )
         self._update_sim_ui(x_light, y_light, countdown)
 
-    def _update_sim_ui(self, x_light, y_light, countdown):
+    def _update_sim_ui(self: _LiveViewHost, x_light, y_light, countdown):
         state = self.va_controller.get_state()
         feats = self.va_features or {
             "queue_x": 0, "queue_y": 0,
-            "wait_x": 0.0, "wait_y": 0.0,
-            "gap_x": 0.0, "gap_y": 0.0,
-            "arrival_x": 0.0, "arrival_y": 0.0,
         }
         is_yellow = state["in_yellow"]
         target_green = float(state.get("target_green", self.va_controller.max_green))
@@ -369,7 +378,7 @@ class LiveViewMixin:
                 self.history_table.setItem(0, 1, QTableWidgetItem(f"{rec.duration:.1f}s"))
                 self.history_table.setItem(0, 2, QTableWidgetItem(rec.reason))
 
-    def _load_video(self, path):
+    def _load_video(self: _LiveViewHost, path):
         self._stop_video()
         self.video_cap = cv2.VideoCapture(path)
         if not self.video_cap.isOpened():
@@ -381,7 +390,7 @@ class LiveViewMixin:
         self._read_video_frame()
         return True
 
-    def _read_video_frame(self):
+    def _read_video_frame(self: _LiveViewHost):
         if not self.video_cap:
             return False
         ret, frame = self.video_cap.read()
@@ -397,7 +406,7 @@ class LiveViewMixin:
         self.video_preview.set_frame(qimg)
         return True
 
-    def _video_tick(self):
+    def _video_tick(self: _LiveViewHost):
         if self._live_dual_dirty:
             with self._live_dual_lock:
                 live_state = {
@@ -445,7 +454,7 @@ class LiveViewMixin:
         self.video_last_frame_time = now
         self._read_video_frame()
 
-    def _on_play_video(self):
+    def _on_play_video(self: _LiveViewHost):
         if self.video_cap:
             self.video_playing = not self.video_playing
             if self.video_playing:
@@ -454,7 +463,7 @@ class LiveViewMixin:
             else:
                 self.btn_play.setText("▶ 播放")
 
-    def _stop_video(self):
+    def _stop_video(self: _LiveViewHost):
         self.video_playing = False
         if self.video_cap:
             self.video_cap.release()
