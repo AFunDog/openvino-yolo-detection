@@ -213,6 +213,10 @@ class DetectControllerMixin:
                             kept_confidences = [confidences[i] for i in kept_indices]
                             kept_class_ids = [class_ids[i] for i in kept_indices]
                             kept_track_ids = [track_ids[i] for i in kept_indices]
+                            kept_statuses = [
+                                stream["direction_filter"].track_states.get(track_id, {}).get("status", "pending")
+                                for track_id in kept_track_ids
+                            ]
                             filter_info = stream["direction_filter"].get_filter_info(stream["width"], stream["height"])
                             frame_class_counts = {}
                             for cls_id in kept_class_ids:
@@ -221,7 +225,8 @@ class DetectControllerMixin:
 
                             if kept_boxes:
                                 result_frame = yolo.draw_detections(
-                                    frame.copy(), kept_boxes, kept_confidences, kept_class_ids, yolo.CLASS_NAMES, track_ids=kept_track_ids
+                                    frame.copy(), kept_boxes, kept_confidences, kept_class_ids, yolo.CLASS_NAMES,
+                                    track_ids=kept_track_ids, statuses=kept_statuses
                                 )
                             else:
                                 result_frame = frame.copy()

@@ -304,7 +304,6 @@ class TrajectoryDirectionFilter:
     def _classify_track(self, state):
         start = state.get("start")
         last = state.get("last")
-        prev = state.get("prev")
         hits = int(state.get("hits", 0))
         if start is None or last is None:
             return "pending", 0.0, 0.0
@@ -312,9 +311,10 @@ class TrajectoryDirectionFilter:
         if hits < 2:
             return "pending", 0.0, 0.0
 
-        ref = prev if prev is not None else start
-        dx = last[0] - ref[0]
-        dy = last[1] - ref[1]
+        # 使用轨迹累计位移判定方向。跳帧期间会复用同一检测框，
+        # 若只比较相邻帧，车辆会在复用帧被反复误判为低速。
+        dx = last[0] - start[0]
+        dy = last[1] - start[1]
         moved = math.hypot(dx, dy)
         if moved < self.min_displacement:
             return "slow", 0.0, moved

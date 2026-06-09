@@ -303,7 +303,7 @@ class LiveViewMixin:
                 QProgressBar::chunk {{ background: {C_PROGRESS_CHUNK_YELLOW}; border-radius: 3px; }}
             """)
         else:
-            m = self.va_controller.max_green
+            m = target_green
             self.progress_bar.setValue(
                 int(state["phase_elapsed"] / m * 100) if m > 0 else 0
             )

@@ -185,9 +185,7 @@ class VAController:
         return False, ""
 
     def _remaining_green(self) -> float:
-        if self._phase_elapsed < self.min_green:
-            return self.min_green - self._phase_elapsed
-        return max(0, self.max_green - self._phase_elapsed)
+        return max(0.0, self.last_target_green - self._phase_elapsed)
 
     def _end_yellow(self):
         old = self._phase
