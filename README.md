@@ -52,6 +52,23 @@ python main.py video test/input/traffic.mp4 test/output/output.mp4
 python main.py camera 0 test/output/output.mp4
 ```
 
+### 理论通行效率评估
+
+```bash
+python scripts/evaluate_signal_efficiency.py data/detection_pair_xxx/summary.json
+```
+
+可选参数示例：
+
+```bash
+python scripts/evaluate_signal_efficiency.py data/detection_pair_xxx/summary.json --fixed-green-x 20 --fixed-green-y 20 --sat-x 1.0 --sat-y 1.0 --json
+```
+
+说明：
+- 输入必须是 `direction_pair` 类型的 `summary.json`
+- 评估基于总车流量和视频时长推导出的均匀到达率，属于理论估算，不是逐车精确仿真
+- 输出包含固定配时与自适应配时的通过量、累计延误、平均延误、最大排队和提升率
+
 ## 项目结构
 
 ```text

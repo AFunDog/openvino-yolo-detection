@@ -68,6 +68,9 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
         self.va_sim_time = 0.0
         self.va_features = None
         self.va_pair_summary = None
+        self.efficiency_tracker = None
+        self.efficiency_snapshot = None
+        self.efficiency_last_switch_count = -1
 
         # 视频播放器
         self.video_cap = None

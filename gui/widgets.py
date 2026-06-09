@@ -43,8 +43,11 @@ class IntersectionCanvas(QWidget):
         self.car_x = None
         self.car_y = None
         self.countdown = None
-        self.setMinimumSize(350, 350)
+        self.setMinimumSize(220, 220)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def sizeHint(self):
+        return QSize(360, 360)
 
     def update_state(self, x_color="off", y_color="off", car_x=None, car_y=None, countdown=None):
         self.x_color = x_color
@@ -57,9 +60,15 @@ class IntersectionCanvas(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(self.rect(), gui_theme.C_CARD_BG)
 
-        W = self.width()
-        H = self.height()
+        side = min(self.width(), self.height())
+        offset_x = (self.width() - side) / 2
+        offset_y = (self.height() - side) / 2
+        p.translate(offset_x, offset_y)
+
+        W = side
+        H = side
         road_w = int(W * 0.24)
         lane_w = road_w / 4
         curb_w = max(4, int(W * 0.012))

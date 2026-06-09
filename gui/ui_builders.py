@@ -57,6 +57,7 @@ class _UIBuilderHost(Protocol):
     speed_val: Any
     data_source_combo: Any
     cycle_info: Any
+    efficiency_view: Any
     history_table: Any
     status_label: Any
     x_info_view: Any
@@ -440,6 +441,25 @@ class UIBuilderMixin:
         self.cycle_info.setFixedHeight(88)
         self.cycle_info.setPlaceholderText("导入 X/Y 视频后点击开始检测")
         traffic_right.addWidget(self.cycle_info)
+
+        eff_lbl = QLabel("理论通行效率")
+        _ds(eff_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        traffic_right.addWidget(eff_lbl)
+        self.efficiency_view = QTextEdit()
+        self.efficiency_view.setReadOnly(True)
+        self.efficiency_view.setFixedHeight(96)
+        self.efficiency_view.setPlaceholderText("实时检测启动后，将在每次红绿灯切换后刷新固定配时与自适应配时的理论对比")
+        _ds(self.efficiency_view, lambda: f"""
+            QTextEdit {{
+                border: 1px solid {C_SIDEBAR_BORDER};
+                border-radius: 8px;
+                padding: 8px 10px;
+                background: {C_DETAIL_BG};
+                color: {C_TEXT_PRIMARY.name()};
+                font-size: 12px;
+            }}
+        """)
+        traffic_right.addWidget(self.efficiency_view)
 
         hist_lbl = QLabel("切换记录")
         _ds(hist_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")

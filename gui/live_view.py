@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 from gui.theme import *
 from gui.utils import load_json
-from algorithm import load_frames
+from algorithm import RealtimeEfficiencyTracker, format_realtime_snapshot_text, load_frames
 
 
 class _LiveViewHost(Protocol):
@@ -41,12 +41,16 @@ class _LiveViewHost(Protocol):
     va_frames: list
     va_fps: float
     va_pair_summary: Any
+    efficiency_tracker: Any
+    efficiency_snapshot: Any
+    efficiency_last_switch_count: int
     feature_extractor: Any
     DATA_DIR: Path
     canvas: Any
     timer_text: Any
     progress_bar: Any
     cycle_info: Any
+    efficiency_view: Any
     history_table: Any
     speed_slider: Any
     speed_val: Any
@@ -98,11 +102,24 @@ class LiveViewMixin:
         with self._live_frames_lock:
             self._live_frames.clear()
         self._reset_live_dual_state()
+        self.efficiency_tracker = RealtimeEfficiencyTracker(
+            fixed_green_x=20.0,
+            fixed_green_y=20.0,
+            min_green=self.va_controller.min_green,
+            max_green=self.va_controller.max_green,
+            yellow_duration=self.va_controller.yellow_duration,
+            saturation_rate_x=1.0,
+            saturation_rate_y=1.0,
+        )
+        self.efficiency_snapshot = None
+        self.efficiency_last_switch_count = -1
         self.btn_start_sim.setEnabled(True)
         self.btn_pause_sim.setEnabled(True)
         self.speed_slider.setEnabled(False)
         self.speed_val.setText("1x（实时）")
         self.cycle_info.setPlaceholderText("等待双视频实时检测开始...")
+        self.efficiency_view.clear()
+        self.efficiency_view.setPlaceholderText("实时检测启动后，将在每次红绿灯切换后刷新固定配时与自适应配时的理论对比")
 
     def _stop_live_sim(self: _LiveViewHost):
         """停止实时仿真并重置 UI。"""
@@ -118,7 +135,11 @@ class LiveViewMixin:
         self.progress_bar.setValue(0)
         self.cycle_info.setText("已停止实时仿真")
         self.cycle_info.setPlaceholderText("选择数据源后点击 ▶ 开始")
+        self.efficiency_view.clear()
         self.history_table.setRowCount(0)
+        self.efficiency_tracker = None
+        self.efficiency_snapshot = None
+        self.efficiency_last_switch_count = -1
         self.speed_slider.setEnabled(True)
         self.speed_val.setText(f"{int(self.sim_speed)}x")
         self.btn_start_sim.setEnabled(True)
@@ -149,6 +170,11 @@ class LiveViewMixin:
         self.feature_extractor.reset()
         self.va_frame_index = 0
         self.va_sim_time = 0.0
+        self.efficiency_tracker = None
+        self.efficiency_snapshot = None
+        self.efficiency_last_switch_count = -1
+        self.efficiency_view.clear()
+        self.efficiency_view.setPlaceholderText("实时检测模式下显示理论通行效率提升")
 
     def _on_start_sim(self: _LiveViewHost):
         if self._sim_live_mode:
@@ -186,6 +212,10 @@ class LiveViewMixin:
         self.va_controller.reset()
         self.feature_extractor.reset()
         self.va_pair_summary = None
+        self.efficiency_tracker = None
+        self.efficiency_snapshot = None
+        self.efficiency_last_switch_count = -1
+        self.efficiency_view.clear()
 
     def _build_live_dual_features(self: _LiveViewHost, dt):
         with self._live_dual_lock:
@@ -236,7 +266,7 @@ class LiveViewMixin:
                 0.0, 0.0,
                 dt,
             )
-            self._update_sim_ui(x_light, y_light, countdown)
+            self._update_sim_ui(x_light, y_light, countdown, dt)
             return
 
         now = time.time()
@@ -254,7 +284,7 @@ class LiveViewMixin:
                 0.0, 0.0,
                 dt,
             )
-            self._update_sim_ui(x_light, y_light, countdown)
+            self._update_sim_ui(x_light, y_light, countdown, dt)
             return
 
         n_frames = max(1, int(dt * max(self.va_fps, 1.0)))
@@ -277,9 +307,9 @@ class LiveViewMixin:
             0.0, 0.0,
             dt,
         )
-        self._update_sim_ui(x_light, y_light, countdown)
+        self._update_sim_ui(x_light, y_light, countdown, dt)
 
-    def _update_sim_ui(self: _LiveViewHost, x_light, y_light, countdown):
+    def _update_sim_ui(self: _LiveViewHost, x_light, y_light, countdown, dt):
         state = self.va_controller.get_state()
         feats = self.va_features or {
             "queue_x": 0, "queue_y": 0,
@@ -336,6 +366,19 @@ class LiveViewMixin:
             )
 
         mode_tag = "实时" if self._sim_live_mode else ("双视频" if self.va_pair_summary is not None else "VA")
+        if self._sim_live_mode and self.efficiency_tracker is not None:
+            self.efficiency_snapshot = self.efficiency_tracker.update(
+                observed_queue_x=float(feats.get("queue_x", 0)),
+                observed_queue_y=float(feats.get("queue_y", 0)),
+                observed_passed_x=float(feats.get("line_count_x", 0)),
+                observed_passed_y=float(feats.get("line_count_y", 0)),
+                dt=max(float(dt), 0.0),
+            )
+            switch_count = int(self.efficiency_snapshot.adaptive_switch_count)
+            if switch_count != self.efficiency_last_switch_count or not self.efficiency_view.toPlainText().strip():
+                self.efficiency_last_switch_count = switch_count
+                self.efficiency_view.setText(format_realtime_snapshot_text(self.efficiency_snapshot))
+
         metrics_text = (
             f"模式: {mode_tag}\n"
             f"当前相位目标绿灯: {target_green:.1f}s\n"
