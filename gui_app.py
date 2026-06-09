@@ -744,9 +744,14 @@ class MainWindow(QMainWindow):
             "frame_idx": 0,
             "fps": 0.0,
             "num_objects": 0,
+            "track_count_total": 0,
+            "track_count_keep": 0,
+            "track_count_filtered": 0,
             "line_count_total": 0,
             "line_count_in": 0,
             "line_count_out": 0,
+            "axis": None,
+            "axis_ready": False,
             "video_fps": 30.0,
             "backend": "",
             "source": "",
@@ -954,9 +959,9 @@ class MainWindow(QMainWindow):
         stats_layout.setSpacing(16)
         self.stat_frames = StatLabel("0", "帧数", "blue")
         self.stat_detections = StatLabel("0", "检测数", "primary")
-        self.stat_vehicles = StatLabel("0", "总过线", "green")
-        self.stat_x_count = StatLabel("0", "X过线", "blue")
-        self.stat_y_count = StatLabel("0", "Y过线", "orange")
+        self.stat_vehicles = StatLabel("0", "总有效车", "green")
+        self.stat_x_count = StatLabel("0", "X有效", "blue")
+        self.stat_y_count = StatLabel("0", "Y有效", "orange")
         self.stat_fps = StatLabel("0", "FPS", "orange")
         stats_layout.addWidget(self.stat_frames)
         stats_layout.addWidget(self.stat_detections)
@@ -1290,15 +1295,21 @@ class MainWindow(QMainWindow):
 
         def on_detect_frame(direction, frame_bgr, frame_idx, avg_fps, num_objects, video_fps, line_counts, backend):
             direction = str(direction).upper()
+            counts = line_counts or {}
             with self._live_dual_lock:
                 state = self._live_dual_state.setdefault(direction, self._new_live_direction_state())
                 state["frame_bgr"] = frame_bgr
                 state["frame_idx"] = frame_idx
                 state["fps"] = avg_fps
                 state["num_objects"] = num_objects
-                state["line_count_total"] = int((line_counts or {}).get("line_count_total", 0))
-                state["line_count_in"] = int((line_counts or {}).get("line_count_in", 0))
-                state["line_count_out"] = int((line_counts or {}).get("line_count_out", 0))
+                state["track_count_total"] = int(counts.get("track_count_total", counts.get("line_count_total", 0)))
+                state["track_count_keep"] = int(counts.get("track_count_keep", counts.get("line_count_in", 0)))
+                state["track_count_filtered"] = int(counts.get("track_count_filtered", counts.get("line_count_out", 0)))
+                state["line_count_total"] = state["track_count_total"]
+                state["line_count_in"] = state["track_count_keep"]
+                state["line_count_out"] = state["track_count_filtered"]
+                state["axis"] = counts.get("axis")
+                state["axis_ready"] = bool(counts.get("axis_ready", False))
                 state["video_fps"] = float(video_fps or state.get("video_fps") or 30.0)
                 state["backend"] = backend
             self._live_dual_dirty = True
@@ -1337,7 +1348,7 @@ class MainWindow(QMainWindow):
                             "fps_list": [],
                             "total_detections": 0,
                             "tracker": yolo.SimpleTracker(),
-                            "line_counter": yolo.LineCounter(),
+                            "direction_filter": yolo.TrajectoryDirectionFilter(),
                             "last_boxes": [],
                             "last_confidences": [],
                             "last_class_ids": [],
@@ -1386,23 +1397,28 @@ class MainWindow(QMainWindow):
                                 class_ids = stream["last_class_ids"]
 
                             track_ids = stream["tracker"].update(boxes, class_ids)
-                            stream["line_counter"].update(
+                            filter_result = stream["direction_filter"].update(
                                 boxes, class_ids, track_ids, stream["width"], stream["height"]
                             )
-                            line_info = stream["line_counter"].get_line_info(stream["width"], stream["height"])
+                            kept_indices = filter_result["kept_indices"]
+                            kept_boxes = [boxes[i] for i in kept_indices]
+                            kept_confidences = [confidences[i] for i in kept_indices]
+                            kept_class_ids = [class_ids[i] for i in kept_indices]
+                            kept_track_ids = [track_ids[i] for i in kept_indices]
+                            filter_info = stream["direction_filter"].get_filter_info(stream["width"], stream["height"])
 
-                            if boxes:
+                            if kept_boxes:
                                 result_frame = yolo.draw_detections(
-                                    frame.copy(), boxes, confidences, class_ids, yolo.CLASS_NAMES, track_ids=track_ids
+                                    frame.copy(), kept_boxes, kept_confidences, kept_class_ids, yolo.CLASS_NAMES, track_ids=kept_track_ids
                                 )
                             else:
                                 result_frame = frame.copy()
                             result_frame = yolo.draw_counting_line(
                                 result_frame,
-                                line_info,
-                                stream["line_counter"].total_count,
-                                stream["line_counter"].count_in,
-                                stream["line_counter"].count_out,
+                                filter_info,
+                                filter_result["track_count_total"],
+                                filter_result["track_count_keep"],
+                                filter_result["track_count_filtered"],
                             )
                             cv2.putText(
                                 result_frame,
@@ -1415,7 +1431,7 @@ class MainWindow(QMainWindow):
                             )
                             cv2.putText(
                                 result_frame,
-                                f"Objects: {len(boxes)}",
+                                f"Valid: {len(kept_boxes)}  Raw: {len(boxes)}",
                                 (10, 60),
                                 yolo.DISPLAY_LABEL_FONT,
                                 0.8,
@@ -1443,18 +1459,20 @@ class MainWindow(QMainWindow):
                                 stream["writer"].write(result_frame)
 
                             stream["frame_count"] += 1
-                            stream["total_detections"] += len(boxes)
+                            stream["total_detections"] += len(kept_boxes)
                             on_detect_frame(
                                 direction,
                                 result_frame,
                                 stream["frame_count"],
                                 avg_fps,
-                                len(boxes),
+                                len(kept_boxes),
                                 stream["fps"],
                                 {
-                                    "line_count_total": stream["line_counter"].total_count,
-                                    "line_count_in": stream["line_counter"].count_in,
-                                    "line_count_out": stream["line_counter"].count_out,
+                                    "track_count_total": filter_result["track_count_total"],
+                                    "track_count_keep": filter_result["track_count_keep"],
+                                    "track_count_filtered": filter_result["track_count_filtered"],
+                                    "axis": filter_result["axis"],
+                                    "axis_ready": filter_result["axis_ready"],
                                 },
                                 backend,
                             )
@@ -1470,11 +1488,16 @@ class MainWindow(QMainWindow):
                             "total_frames": stream["frame_count"],
                             "avg_fps": round(final_avg_fps, 1),
                             "total_detections": stream["total_detections"],
-                            "count_method": "line_crossing",
-                            "line_count_total": stream["line_counter"].total_count,
-                            "line_count_in": stream["line_counter"].count_in,
-                            "line_count_out": stream["line_counter"].count_out,
-                            "crossed_class_counts": stream["line_counter"].crossed_class_counts,
+                            "count_method": "trajectory_direction_filter",
+                            "track_count_total": stream["direction_filter"].total_count,
+                            "track_count_keep": stream["direction_filter"].count_in,
+                            "track_count_filtered": stream["direction_filter"].count_out,
+                            "line_count_total": stream["direction_filter"].total_count,
+                            "line_count_in": stream["direction_filter"].count_in,
+                            "line_count_out": stream["direction_filter"].count_out,
+                            "crossed_class_counts": stream["direction_filter"].crossed_class_counts,
+                            "filtered_class_counts": stream["direction_filter"].filtered_class_counts,
+                            "filter_info": filter_info,
                             "video_info": {
                                 "width": stream["width"],
                                 "height": stream["height"],
@@ -1575,6 +1598,9 @@ class MainWindow(QMainWindow):
                 "source": item.get("source_path"),
                 "session_dir": item.get("session_dir"),
                 "output_path": item.get("output_path"),
+                "track_count_total": summary.get("track_count_total", summary.get("line_count_total", 0)),
+                "track_count_keep": summary.get("track_count_keep", summary.get("line_count_in", 0)),
+                "track_count_filtered": summary.get("track_count_filtered", summary.get("line_count_out", 0)),
                 "line_count_total": summary.get("line_count_total", 0),
                 "line_count_in": summary.get("line_count_in", 0),
                 "line_count_out": summary.get("line_count_out", 0),
@@ -1596,13 +1622,15 @@ class MainWindow(QMainWindow):
         session_dir = DATA_DIR / session_name
         session_dir.mkdir(parents=True, exist_ok=True)
 
-        line_count_x = int(by_direction["X"]["line_count_total"])
-        line_count_y = int(by_direction["Y"]["line_count_total"])
+        line_count_x = int(by_direction["X"]["track_count_total"])
+        line_count_y = int(by_direction["Y"]["track_count_total"])
         summary = {
             "session_type": "direction_pair",
             "source": "same_intersection_xy_pair",
-            "description": "同一路口两段垂直方向监控视频的聚合过线统计",
-            "count_method": "line_crossing_by_direction",
+            "description": "同一路口两段垂直方向监控视频的轨迹方向过滤统计",
+            "count_method": "trajectory_direction_filter_by_direction",
+            "track_count_x": line_count_x,
+            "track_count_y": line_count_y,
             "line_count_x": line_count_x,
             "line_count_y": line_count_y,
             "line_count_total": line_count_x + line_count_y,
@@ -1655,8 +1683,8 @@ class MainWindow(QMainWindow):
             self._set_preview_frame(self.video_preview_x, x_state.get("frame_bgr"))
             self._set_preview_frame(self.video_preview_y, y_state.get("frame_bgr"))
 
-            x_count = int(x_state.get("line_count_total", 0))
-            y_count = int(y_state.get("line_count_total", 0))
+            x_count = int(x_state.get("track_count_total", x_state.get("line_count_total", 0)))
+            y_count = int(y_state.get("track_count_total", y_state.get("line_count_total", 0)))
             total_count = x_count + y_count
             total_frames = int(x_state.get("frame_idx", 0)) + int(y_state.get("frame_idx", 0))
             total_objects = int(x_state.get("num_objects", 0)) + int(y_state.get("num_objects", 0))
@@ -1672,11 +1700,11 @@ class MainWindow(QMainWindow):
                 f"实时双视频联动\n"
                 f"X视频: {Path(str(x_state.get('source', 'X'))).name}  后端: {self._backend_label(x_state.get('backend'))}\n"
                 f"Y视频: {Path(str(y_state.get('source', 'Y'))).name}  后端: {self._backend_label(y_state.get('backend'))}\n"
-                f"X过线:{x_count}  Y过线:{y_count}  总过线:{total_count}"
+                f"X有效:{x_count}  Y有效:{y_count}  总有效:{total_count}"
             )
             if self.detecting:
                 self.detect_status.setText(
-                    f"实时检测中... X过线:{x_count}  Y过线:{y_count}  当前目标:{total_objects}"
+                    f"实时检测中... X有效:{x_count}  Y有效:{y_count}  当前目标:{total_objects}"
                 )
                 self.detect_status.setStyleSheet(f"color: {C_PRIMARY.name()}; font-size: 12px;")
             self._live_dual_dirty = False
@@ -1832,13 +1860,13 @@ class MainWindow(QMainWindow):
             f"推理后端: {backend_label}\n"
             f"分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}\n"
             f"总帧数: {frames}  总检测: {total}\n"
-            f"过线总数: {vehicle_count}  进线:{count_in}  出线:{count_out}  FPS: {fps_val:.1f}"
+            f"有效总数: {vehicle_count}  通过:{count_in}  过滤:{count_out}  FPS: {fps_val:.1f}"
         )
         self.session_detail.setText(info)
         self.overview_view.setText(
-            f"会话: 单视频检测\n"
+            f"会话: 单视频轨迹过滤\n"
             f"总帧数: {frames}  总检测: {total}\n"
-            f"过线: {vehicle_count}  进线:{count_in}  出线:{count_out}\n"
+            f"有效车辆: {vehicle_count}  通过:{count_in}  过滤:{count_out}\n"
             f"后端: {backend_label}  分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}"
         )
 
@@ -1846,9 +1874,9 @@ class MainWindow(QMainWindow):
         direction_videos = summary.get("direction_videos", {})
         x_info = direction_videos.get("X", {})
         y_info = direction_videos.get("Y", {})
-        x_count = int(summary.get("line_count_x", x_info.get("line_count_total", 0)))
-        y_count = int(summary.get("line_count_y", y_info.get("line_count_total", 0)))
-        total_count = int(summary.get("line_count_total", x_count + y_count))
+        x_count = int(summary.get("track_count_x", summary.get("line_count_x", x_info.get("line_count_total", 0))))
+        y_count = int(summary.get("track_count_y", summary.get("line_count_y", y_info.get("line_count_total", 0))))
+        total_count = int(summary.get("track_count_total", summary.get("line_count_total", x_count + y_count)))
         total_frames = int(x_info.get("total_frames", 0)) + int(y_info.get("total_frames", 0))
         total_detections = int(x_info.get("total_detections", 0)) + int(y_info.get("total_detections", 0))
         x_backend = self._backend_label(x_info.get("backend"))
@@ -1862,7 +1890,7 @@ class MainWindow(QMainWindow):
         self.stat_fps.set_value("--")
 
         self.class_table.setRowCount(0)
-        rows = [("X方向过线", x_count), ("Y方向过线", y_count)]
+        rows = [("X方向有效", x_count), ("Y方向有效", y_count)]
         for label, count in rows:
             pct_val = (count / total_count * 100) if total_count else 0.0
             row_idx = self.class_table.rowCount()
@@ -1885,14 +1913,14 @@ class MainWindow(QMainWindow):
             f"X视频: {Path(str(x_info.get('source', 'N/A'))).name}\n"
             f"Y视频: {Path(str(y_info.get('source', 'N/A'))).name}\n"
             f"推理后端: X={x_backend}  Y={y_backend}\n"
-            f"X方向车辆数: {x_count}  Y方向车辆数: {y_count}\n"
-            f"总过线数: {total_count}\n"
+            f"X方向有效车辆: {x_count}  Y方向有效车辆: {y_count}\n"
+            f"总有效车数: {total_count}\n"
             f"可直接作为交通灯仿真的 X / Y 决策输入"
         )
         self.session_detail.setText(info)
         self.overview_view.setText(
             f"会话: 双方向聚合\n"
-            f"X过线:{x_count}  Y过线:{y_count}  总过线:{total_count}\n"
+            f"X有效:{x_count}  Y有效:{y_count}  总有效:{total_count}\n"
             f"总帧数: {total_frames}  总检测: {total_detections}\n"
             f"后端: X={x_backend} / Y={y_backend}"
         )
@@ -2211,7 +2239,7 @@ class MainWindow(QMainWindow):
             f"模式: {mode_tag}\n"
             f"X: queue={feats['queue_x']}  wait={feats['wait_x']:.0f}s  gap={feats['gap_x']:.1f}s  arrival={feats['arrival_x']:.1f}/s\n"
             f"Y: queue={feats['queue_y']}  wait={feats['wait_y']:.0f}s  gap={feats['gap_y']:.1f}s  arrival={feats['arrival_y']:.1f}/s\n"
-            f"过线: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}  总={feats.get('line_count_x', 0) + feats.get('line_count_y', 0)}\n"
+            f"有效: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}  总={feats.get('line_count_x', 0) + feats.get('line_count_y', 0)}\n"
             f"相位: {state['phase']}  已过绿灯:{state['phase_elapsed']:.1f}s  黄灯:{state['yellow_elapsed']:.1f}s"
         )
         self.metrics_view.setText(metrics_text)
@@ -2222,23 +2250,23 @@ class MainWindow(QMainWindow):
             f"阶段: {state['phase']}  倒计时: {countdown_text}\n"
             f"X: queue={feats['queue_x']} wait={feats['wait_x']:.0f}s gap={feats['gap_x']:.1f}s arrival={feats['arrival_x']:.1f}/s\n"
             f"Y: queue={feats['queue_y']} wait={feats['wait_y']:.0f}s gap={feats['gap_y']:.1f}s arrival={feats['arrival_y']:.1f}/s\n"
-            f"过线: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}"
+            f"有效: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}"
         )
         self.overview_view.setText(overview_text)
 
         if self._sim_live_mode:
             self.cycle_info.setText(
                 f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
-                f"X过线:{feats.get('line_count_x', 0)}  当前目标:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s\n"
-                f"Y过线:{feats.get('line_count_y', 0)}  当前目标:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s\n"
+                f"X有效:{feats.get('line_count_x', 0)}  当前目标:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s\n"
+                f"Y有效:{feats.get('line_count_y', 0)}  当前目标:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s\n"
                 f"X到达:{feats['arrival_x']:.1f}/s  Y到达:{feats['arrival_y']:.1f}/s  绿灯已过:{state['phase_elapsed']:.1f}s"
             )
         else:
             self.cycle_info.setText(
                 f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
-                f"X数量:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
+                f"X有效:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
                 f"清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
-                f"Y数量:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
+                f"Y有效:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
                 f"清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
                 f"绿灯已过:{state['phase_elapsed']:.1f}s  "
                 f"标定:{'✓' if feats.get('calibrated') else '…'}"

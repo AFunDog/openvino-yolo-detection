@@ -164,19 +164,26 @@ class SimpleTracker:
         return track_ids
 
 
-class LineCounter:
-    """基于 track_id 的自动过线计数器。"""
+class TrajectoryDirectionFilter:
+    """基于 track_id 的轨迹方向过滤器。"""
 
-    def __init__(self, line_position=0.5, min_displacement=25.0):
-        self.line_position = line_position
+    def __init__(self, min_displacement=25.0, angle_threshold_deg=35.0):
         self.min_displacement = min_displacement
+        self.angle_threshold_deg = angle_threshold_deg
+        self.min_similarity = math.cos(math.radians(angle_threshold_deg))
         self.track_states = {}   # track_id -> state
         self.axis_vec = np.array([0.0, 1.0], dtype=np.float32)
-        self.line_point = None
+        self.anchor_point = None
+        self.axis_ready = False
+
+        # 兼容旧统计字段，但语义已改为“过滤后车辆”
         self.total_count = 0
         self.count_in = 0
         self.count_out = 0
         self.crossed_class_counts = {}
+        self.filtered_class_counts = {}
+        self.current_keep_count = 0
+        self.current_filtered_count = 0
 
     def _update_axis(self, frame_width, frame_height):
         vectors = []
@@ -201,17 +208,42 @@ class LineCounter:
                 if axis[1] < 0:
                     axis = -axis
                 self.axis_vec = axis.astype(np.float32)
+                self.axis_ready = True
 
-        self.line_point = np.array(
-            [frame_width * 0.5, frame_height * self.line_position],
+        self.anchor_point = np.array(
+            [frame_width * 0.5, frame_height * 0.5],
             dtype=np.float32,
         )
 
+    def _classify_track(self, state):
+        start = state.get("start")
+        last = state.get("last")
+        if start is None or last is None:
+            return "pending", 0.0, 0.0
+
+        dx = last[0] - start[0]
+        dy = last[1] - start[1]
+        moved = math.hypot(dx, dy)
+        if moved < self.min_displacement or not self.axis_ready:
+            return "pending", 0.0, moved
+
+        v = np.array([dx, dy], dtype=np.float32) / max(moved, 1e-6)
+        similarity = float(abs(np.dot(v, self.axis_vec)))
+        return ("keep" if similarity >= self.min_similarity else "reject"), similarity, moved
+
     def update(self, boxes, class_ids, track_ids, frame_width, frame_height):
         self._update_axis(frame_width, frame_height)
-        crossing_events = []
 
-        for box, cls_id, track_id in zip(boxes, class_ids, track_ids):
+        kept_indices = []
+        kept_boxes = []
+        kept_confidences = []
+        kept_class_ids = []
+        kept_track_ids = []
+        events = []
+        current_keep_count = 0
+        current_filtered_count = 0
+
+        for idx, (box, cls_id, track_id) in enumerate(zip(boxes, class_ids, track_ids)):
             cx = float((box[0] + box[2]) / 2.0)
             cy = float((box[1] + box[3]) / 2.0)
             center = np.array([cx, cy], dtype=np.float32)
@@ -219,76 +251,121 @@ class LineCounter:
             state = self.track_states.setdefault(track_id, {
                 "start": center.copy(),
                 "last": center.copy(),
-                "prev_side": None,
-                "counted": False,
                 "class_id": int(cls_id),
+                "status": "pending",
+                "similarity": 0.0,
+                "moved": 0.0,
+                "counted_keep": False,
+                "counted_reject": False,
             })
             state["last"] = center.copy()
             state["class_id"] = int(cls_id)
 
-            if self.line_point is None:
-                continue
+            status, similarity, moved = self._classify_track(state)
+            state["status"] = status
+            state["similarity"] = similarity
+            state["moved"] = moved
 
-            signed_dist = float(np.dot(center - self.line_point, self.axis_vec))
-            side = 1 if signed_dist > 1.0 else (-1 if signed_dist < -1.0 else 0)
-
-            prev_side = state.get("prev_side")
-            if prev_side is None and side != 0:
-                state["prev_side"] = side
-                continue
-
-            moved = math.hypot(center[0] - state["start"][0], center[1] - state["start"][1])
-            crossed = (
-                not state.get("counted", False)
-                and prev_side is not None
-                and side != 0
-                and prev_side != side
-                and moved >= self.min_displacement
-            )
-            if crossed:
-                direction = "in" if prev_side < side else "out"
-                class_name = get_class_name(cls_id)
-                self.total_count += 1
-                if direction == "in":
-                    self.count_in += 1
-                else:
+            class_name = get_class_name(cls_id)
+            if status == "keep":
+                current_keep_count += 1
+                kept_indices.append(idx)
+                kept_boxes.append(box)
+                kept_confidences.append(0.0)
+                kept_class_ids.append(int(cls_id))
+                kept_track_ids.append(int(track_id))
+                if not state["counted_keep"]:
+                    state["counted_keep"] = True
+                    self.total_count += 1
+                    self.count_in = self.total_count
+                    self.crossed_class_counts[class_name] = (
+                        self.crossed_class_counts.get(class_name, 0) + 1
+                    )
+                    events.append({
+                        "track_id": int(track_id),
+                        "class": class_name,
+                        "class_id": int(cls_id),
+                        "status": "keep",
+                        "similarity": round(float(similarity), 4),
+                        "moved": round(float(moved), 2),
+                        "count_total": self.total_count,
+                    })
+            elif status == "reject":
+                current_filtered_count += 1
+                if not state["counted_reject"]:
+                    state["counted_reject"] = True
                     self.count_out += 1
-                self.crossed_class_counts[class_name] = (
-                    self.crossed_class_counts.get(class_name, 0) + 1
-                )
-                state["counted"] = True
-                crossing_events.append({
-                    "track_id": int(track_id),
-                    "class": class_name,
-                    "class_id": int(cls_id),
-                    "direction": direction,
-                    "count_total": self.total_count,
-                })
+                    self.filtered_class_counts[class_name] = (
+                        self.filtered_class_counts.get(class_name, 0) + 1
+                    )
+                    events.append({
+                        "track_id": int(track_id),
+                        "class": class_name,
+                        "class_id": int(cls_id),
+                        "status": "reject",
+                        "similarity": round(float(similarity), 4),
+                        "moved": round(float(moved), 2),
+                        "count_total": self.total_count,
+                    })
+            else:
+                # pending 阶段：暂时保留，等待轨迹足够长后再过滤
+                current_keep_count += 1
+                kept_indices.append(idx)
+                kept_boxes.append(box)
+                kept_confidences.append(0.0)
+                kept_class_ids.append(int(cls_id))
+                kept_track_ids.append(int(track_id))
 
-            if side != 0:
-                state["prev_side"] = side
+        self.current_keep_count = current_keep_count
+        self.current_filtered_count = current_filtered_count
 
-        return crossing_events
-
-    def get_line_info(self, frame_width, frame_height):
-        if self.line_point is None:
-            self._update_axis(frame_width, frame_height)
-        point = self.line_point if self.line_point is not None else np.array(
-            [frame_width * 0.5, frame_height * self.line_position], dtype=np.float32
-        )
-        direction = self.axis_vec
-        tangent = np.array([-direction[1], direction[0]], dtype=np.float32)
-        half_len = min(frame_width, frame_height) * 0.45
-        p1 = point - tangent * half_len
-        p2 = point + tangent * half_len
         return {
-            "p1": [float(p1[0]), float(p1[1])],
-            "p2": [float(p2[0]), float(p2[1])],
-            "axis": [float(direction[0]), float(direction[1])],
-            "anchor": [float(point[0]), float(point[1])],
-            "line_position": float(self.line_position),
+            "kept_indices": kept_indices,
+            "kept_boxes": kept_boxes,
+            "kept_confidences": kept_confidences,
+            "kept_class_ids": kept_class_ids,
+            "kept_track_ids": kept_track_ids,
+            "events": events,
+            "track_count_total": self.total_count,
+            "track_count_keep": self.current_keep_count,
+            "track_count_filtered": self.current_filtered_count,
+            "filtered_class_counts": dict(self.filtered_class_counts),
+            "kept_class_counts": dict(self.crossed_class_counts),
+            "axis": [float(self.axis_vec[0]), float(self.axis_vec[1])],
+            "anchor": [float(self.anchor_point[0]), float(self.anchor_point[1])] if self.anchor_point is not None else None,
+            "angle_threshold_deg": float(self.angle_threshold_deg),
+            "axis_ready": self.axis_ready,
         }
 
+    def get_line_info(self, frame_width, frame_height):
+        if self.anchor_point is None:
+            self._update_axis(frame_width, frame_height)
+        point = self.anchor_point if self.anchor_point is not None else np.array(
+            [frame_width * 0.5, frame_height * 0.5], dtype=np.float32
+        )
+        direction = self.axis_vec
+        return {
+            "axis": [float(direction[0]), float(direction[1])],
+            "anchor": [float(point[0]), float(point[1])],
+            "angle_threshold_deg": float(self.angle_threshold_deg),
+            "axis_ready": self.axis_ready,
+        }
+
+    def get_filter_info(self, frame_width, frame_height):
+        return self.get_line_info(frame_width, frame_height)
+
+    def reset(self):
+        self.track_states.clear()
+        self.axis_vec = np.array([0.0, 1.0], dtype=np.float32)
+        self.anchor_point = None
+        self.axis_ready = False
+        self.total_count = 0
+        self.count_in = 0
+        self.count_out = 0
+        self.crossed_class_counts.clear()
+        self.filtered_class_counts.clear()
+        self.current_keep_count = 0
+        self.current_filtered_count = 0
 
 # ─── 数据保存 ──────────────────────────────────────────
 
@@ -567,14 +644,23 @@ def draw_detections(img, boxes, confidences, class_ids, classes, track_ids=None)
 
 
 def draw_counting_line(img, line_info, total_count, count_in, count_out):
-    """绘制自动计数线和累计计数。"""
-    p1 = tuple(int(v) for v in line_info["p1"])
-    p2 = tuple(int(v) for v in line_info["p2"])
-    cv2.line(img, p1, p2, (0, 200, 255), 2)
-    cv2.circle(img, tuple(int(v) for v in line_info["anchor"]), 4, (0, 200, 255), -1)
+    """绘制轨迹方向过滤信息。"""
+    axis = line_info.get("axis", [0.0, 1.0])
+    anchor = line_info.get("anchor", [img.shape[1] * 0.5, img.shape[0] * 0.5])
+    anchor_pt = (int(anchor[0]), int(anchor[1]))
+    axis_vec = np.array(axis, dtype=np.float32)
+    norm = float(np.linalg.norm(axis_vec))
+    if norm > 1e-6:
+        axis_vec = axis_vec / norm
+        arrow_end = (
+            int(anchor_pt[0] + axis_vec[0] * 120),
+            int(anchor_pt[1] + axis_vec[1] * 120),
+        )
+        cv2.arrowedLine(img, anchor_pt, arrow_end, (0, 200, 255), 2, tipLength=0.2)
+    cv2.circle(img, anchor_pt, 4, (0, 200, 255), -1)
     cv2.putText(
         img,
-        f"Crossed: {total_count}  In:{count_in}  Out:{count_out}",
+        f"Tracks: {total_count}  Keep:{count_in}  Reject:{count_out}",
         (10, 90),
         DISPLAY_LABEL_FONT,
         0.8,
@@ -633,8 +719,8 @@ def detect_video(source=0, output_path=None, frame_callback=None):
     last_confidences = []
     last_class_ids = []
     tracker = SimpleTracker()
-    line_counter = LineCounter()
-    line_info = line_counter.get_line_info(max(width, 1), max(height, 1))
+    direction_filter = TrajectoryDirectionFilter()
+    filter_info = direction_filter.get_filter_info(max(width, 1), max(height, 1))
     print("开始检测，按 'q' 退出...")
 
     while True:
@@ -655,12 +741,19 @@ def detect_video(source=0, output_path=None, frame_callback=None):
 
         # 追踪器更新（去重统计）
         track_ids = tracker.update(boxes, class_ids)
-        crossing_events = line_counter.update(boxes, class_ids, track_ids, width, height)
-        line_info = line_counter.get_line_info(width, height)
+        filter_result = direction_filter.update(boxes, class_ids, track_ids, width, height)
+        kept_indices = filter_result["kept_indices"]
+        kept_boxes = [boxes[i] for i in kept_indices]
+        kept_confidences = [confidences[i] for i in kept_indices]
+        kept_class_ids = [class_ids[i] for i in kept_indices]
+        kept_track_ids = [track_ids[i] for i in kept_indices]
+        filter_info = direction_filter.get_filter_info(width, height)
 
         # 记录检测数据
         detections = []
-        for i, (box, conf, cls_id) in enumerate(zip(boxes, confidences, class_ids)):
+        for i, (box, conf, cls_id, track_id) in enumerate(
+            zip(kept_boxes, kept_confidences, kept_class_ids, kept_track_ids)
+        ):
             det = {
                 "class": get_class_name(cls_id),
                 "class_id": int(cls_id),
@@ -669,7 +762,7 @@ def detect_video(source=0, output_path=None, frame_callback=None):
                 "y1": round(float(box[1]), 2),
                 "x2": round(float(box[2]), 2),
                 "y2": round(float(box[3]), 2),
-                "track_id": track_ids[i],
+                "track_id": track_id,
             }
             detections.append(det)
             class_name = get_class_name(cls_id)
@@ -678,23 +771,28 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         frame_data.append({
             "frame": frame_count,
             "timestamp": round(time.time(), 3),
+            "raw_num_objects": len(boxes),
             "detections": detections,
             "num_objects": len(detections),
-            "line_crossings": crossing_events,
-            "line_count_total": line_counter.total_count,
-            "line_count_in": line_counter.count_in,
-            "line_count_out": line_counter.count_out,
+            "track_filter_events": filter_result["events"],
+            "track_count_total": filter_result["track_count_total"],
+            "track_count_keep": filter_result["track_count_keep"],
+            "track_count_filtered": filter_result["track_count_filtered"],
         })
 
         # 绘制结果
-        if boxes:
+        if kept_boxes:
             result_frame = draw_detections(
-                frame.copy(), boxes, confidences, class_ids, CLASS_NAMES, track_ids=track_ids
+                frame.copy(), kept_boxes, kept_confidences, kept_class_ids, CLASS_NAMES, track_ids=kept_track_ids
             )
         else:
             result_frame = frame
         result_frame = draw_counting_line(
-            result_frame, line_info, line_counter.total_count, line_counter.count_in, line_counter.count_out
+            result_frame,
+            filter_info,
+            filter_result["track_count_total"],
+            filter_result["track_count_keep"],
+            filter_result["track_count_filtered"],
         )
 
         # 计算FPS
@@ -708,7 +806,7 @@ def detect_video(source=0, output_path=None, frame_callback=None):
 
         # 在画面上显示FPS和检测数量
         fps_text = f"FPS: {avg_fps:.1f}"
-        count_text = f"Objects: {len(boxes)}"
+        count_text = f"Valid Objects: {len(kept_boxes)}  Raw: {len(boxes)}"
         cv2.putText(result_frame, fps_text, (10, 30),
                    DISPLAY_LABEL_FONT, 1.0, (0, 0, 255), 2)
         cv2.putText(result_frame, count_text, (10, 60),
@@ -728,13 +826,15 @@ def detect_video(source=0, output_path=None, frame_callback=None):
                 result_frame,
                 frame_count,
                 avg_fps,
-                len(boxes),
+                len(kept_boxes),
                 cb_dets,
                 fps,
                 {
-                    "line_count_total": line_counter.total_count,
-                    "line_count_in": line_counter.count_in,
-                    "line_count_out": line_counter.count_out,
+                    "track_count_total": filter_result["track_count_total"],
+                    "track_count_keep": filter_result["track_count_keep"],
+                    "track_count_filtered": filter_result["track_count_filtered"],
+                    "axis": filter_result["axis"],
+                    "axis_ready": filter_result["axis_ready"],
                 },
             )
 
@@ -762,18 +862,23 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         "total_frames": frame_count,
         "avg_fps": round(final_avg_fps, 1),
         "total_detections": sum(f["num_objects"] for f in frame_data),
+        "raw_total_detections": sum(f.get("raw_num_objects", 0) for f in frame_data),
         "class_counts": class_counts,
-        "unique_class_counts": tracker.unique_class_counts,
+        "unique_class_counts": filter_result["kept_class_counts"],
         "unique_vehicle_count": sum(
-            v for k, v in tracker.unique_class_counts.items()
+            v for k, v in filter_result["kept_class_counts"].items()
             if k.lower() in {"car", "van", "truck", "bus", "motorcycle", "bicycle"}
         ),
-        "count_method": "line_crossing",
-        "line_count_total": line_counter.total_count,
-        "line_count_in": line_counter.count_in,
-        "line_count_out": line_counter.count_out,
-        "crossed_class_counts": line_counter.crossed_class_counts,
-        "line_info": line_info,
+        "count_method": "trajectory_direction_filter",
+        "track_count_total": filter_result["track_count_total"],
+        "track_count_keep": filter_result["track_count_keep"],
+        "track_count_filtered": filter_result["track_count_filtered"],
+        "line_count_total": filter_result["track_count_total"],
+        "line_count_in": filter_result["track_count_keep"],
+        "line_count_out": filter_result["track_count_filtered"],
+        "crossed_class_counts": filter_result["kept_class_counts"],
+        "filtered_class_counts": filter_result["filtered_class_counts"],
+        "filter_info": filter_info,
         "video_info": {"width": width, "height": height, "fps": fps},
         "model": detector["model_path"],
         "backend": detector["backend"],
