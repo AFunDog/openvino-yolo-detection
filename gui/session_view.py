@@ -23,9 +23,7 @@ class _SessionViewHost(Protocol):
     session_list: Any
     data_source_combo: Any
     selected_session: Any
-    stat_frames: Any
     stat_detections: Any
-    stat_vehicles: Any
     stat_x_count: Any
     stat_y_count: Any
     stat_fps: Any
@@ -182,9 +180,7 @@ class SessionViewMixin:
         count_out = summary.get("line_count_out", 0)
         backend_label = self._backend_label(summary.get("backend"))
 
-        self.stat_frames.set_value(str(frames))
         self.stat_detections.set_value(str(total))
-        self.stat_vehicles.set_value(str(vehicle_count))
         self.stat_x_count.set_value(str(vehicle_count))
         self.stat_y_count.set_value("--")
         self.stat_fps.set_value(str(round(fps_val, 1)))
@@ -257,9 +253,7 @@ class SessionViewMixin:
         x_backend = self._backend_label(x_info.get("backend"))
         y_backend = self._backend_label(y_info.get("backend"))
 
-        self.stat_frames.set_value(str(total_frames))
         self.stat_detections.set_value(str(total_detections))
-        self.stat_vehicles.set_value(str(total_count))
         self.stat_x_count.set_value(str(x_count))
         self.stat_y_count.set_value(str(y_count))
         self.stat_fps.set_value("--")

@@ -70,9 +70,7 @@ class _LiveViewHost(Protocol):
     detect_status: Any
     btn_play: Any
     session_detail: Any
-    stat_frames: Any
     stat_detections: Any
-    stat_vehicles: Any
     stat_x_count: Any
     stat_y_count: Any
     stat_fps: Any
@@ -472,9 +470,7 @@ class LiveViewMixin:
             x_valid = int(x_state.get("num_objects", 0))
             y_valid = int(y_state.get("num_objects", 0))
 
-            self.stat_frames.set_value(str(total_frames))
             self.stat_detections.set_value(str(total_objects))
-            self.stat_vehicles.set_value(str(total_objects))
             self.stat_x_count.set_value(str(x_valid))
             self.stat_y_count.set_value(str(y_valid))
             self.stat_fps.set_value(f"{avg_fps:.1f}")

@@ -31,9 +31,7 @@ class _UIBuilderHost(Protocol):
     btn_detect: Any
     detect_status: Any
     btn_play: Any
-    stat_frames: Any
     stat_detections: Any
-    stat_vehicles: Any
     stat_x_count: Any
     stat_y_count: Any
     stat_fps: Any
@@ -246,15 +244,11 @@ class UIBuilderMixin:
         card_stats = CardWidget()
         stats_layout = QHBoxLayout(card_stats)
         stats_layout.setSpacing(16)
-        self.stat_frames = StatLabel("0", "帧数", "blue")
-        self.stat_detections = StatLabel("0", "检测数", "primary")
-        self.stat_vehicles = StatLabel("0", "总有效车", "green")
-        self.stat_x_count = StatLabel("0", "X有效", "blue")
-        self.stat_y_count = StatLabel("0", "Y有效", "orange")
+        self.stat_detections = StatLabel("0", "总车辆数", "primary")
+        self.stat_x_count = StatLabel("0", "X路车辆数", "blue")
+        self.stat_y_count = StatLabel("0", "Y路车辆数", "orange")
         self.stat_fps = StatLabel("0", "FPS", "orange")
-        stats_layout.addWidget(self.stat_frames)
         stats_layout.addWidget(self.stat_detections)
-        stats_layout.addWidget(self.stat_vehicles)
         stats_layout.addWidget(self.stat_x_count)
         stats_layout.addWidget(self.stat_y_count)
         stats_layout.addWidget(self.stat_fps)
