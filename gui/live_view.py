@@ -271,6 +271,7 @@ class LiveViewMixin:
             "arrival_x": 0.0, "arrival_y": 0.0,
         }
         is_yellow = state["in_yellow"]
+        target_green = float(state.get("target_green", self.va_controller.max_green))
 
         self.x_light = x_light
         self.y_light = y_light
@@ -323,8 +324,9 @@ class LiveViewMixin:
         mode_tag = "实时" if self._sim_live_mode else ("双视频" if self.va_pair_summary is not None else "VA")
         metrics_text = (
             f"模式: {mode_tag}\n"
-            f"X: queue={feats['queue_x']}  wait={feats['wait_x']:.0f}s  gap={feats['gap_x']:.1f}s  arrival={feats['arrival_x']:.1f}/s\n"
-            f"Y: queue={feats['queue_y']}  wait={feats['wait_y']:.0f}s  gap={feats['gap_y']:.1f}s  arrival={feats['arrival_y']:.1f}/s\n"
+            f"当前相位目标绿灯: {target_green:.1f}s\n"
+            f"X: count={feats['queue_x']}\n"
+            f"Y: count={feats['queue_y']}\n"
             f"有效: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}  总={feats.get('line_count_x', 0) + feats.get('line_count_y', 0)}\n"
             f"相位: {state['phase']}  已过绿灯:{state['phase_elapsed']:.1f}s  黄灯:{state['yellow_elapsed']:.1f}s"
         )
@@ -334,8 +336,9 @@ class LiveViewMixin:
         overview_text = (
             f"{mode_tag} / 周期 #{state['cycle_num'] + 1}\n"
             f"阶段: {state['phase']}  倒计时: {countdown_text}\n"
-            f"X: queue={feats['queue_x']} wait={feats['wait_x']:.0f}s gap={feats['gap_x']:.1f}s arrival={feats['arrival_x']:.1f}/s\n"
-            f"Y: queue={feats['queue_y']} wait={feats['wait_y']:.0f}s gap={feats['gap_y']:.1f}s arrival={feats['arrival_y']:.1f}/s\n"
+            f"当前相位目标绿灯: {target_green:.1f}s\n"
+            f"X: count={feats['queue_x']}\n"
+            f"Y: count={feats['queue_y']}\n"
             f"有效: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}"
         )
         self.overview_view.setText(overview_text)
@@ -343,18 +346,16 @@ class LiveViewMixin:
         if self._sim_live_mode:
             self.cycle_info.setText(
                 f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
-                f"X有效:{feats.get('line_count_x', 0)}  当前目标:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s\n"
-                f"Y有效:{feats.get('line_count_y', 0)}  当前目标:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s\n"
-                f"X到达:{feats['arrival_x']:.1f}/s  Y到达:{feats['arrival_y']:.1f}/s  绿灯已过:{state['phase_elapsed']:.1f}s"
+                f"当前相位目标绿灯:{target_green:.1f}s\n"
+                f"X有效:{feats.get('line_count_x', 0)}  Y有效:{feats.get('line_count_y', 0)}\n"
+                f"当前计数: X={feats['queue_x']}  Y={feats['queue_y']}  绿灯已过:{state['phase_elapsed']:.1f}s"
             )
         else:
             self.cycle_info.setText(
                 f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
-                f"X有效:{feats['queue_x']}  等待:{feats['wait_x']:.0f}s  "
-                f"清空:{feats['gap_x']:.1f}s  到达:{feats['arrival_x']:.1f}/s\n"
-                f"Y有效:{feats['queue_y']}  等待:{feats['wait_y']:.0f}s  "
-                f"清空:{feats['gap_y']:.1f}s  到达:{feats['arrival_y']:.1f}/s\n"
-                f"绿灯已过:{state['phase_elapsed']:.1f}s  "
+                f"当前相位目标绿灯:{target_green:.1f}s\n"
+                f"X有效:{feats['queue_x']}  Y有效:{feats['queue_y']}\n"
+                f"当前计数: X={feats['queue_x']}  Y={feats['queue_y']}  绿灯已过:{state['phase_elapsed']:.1f}s\n"
                 f"标定:{'✓' if feats.get('calibrated') else '…'}"
             )
 

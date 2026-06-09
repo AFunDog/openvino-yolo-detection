@@ -1,27 +1,25 @@
 """
 Vehicle-Actuated 交通灯控制器
 
-感应式控制 —— 交通工程中最广泛使用的实战算法。
+简化比较法 —— 仅根据 X/Y 两个方向的车辆数量比较来决定绿灯时长。
 
 决策逻辑 (每决策步):
   1. 黄灯过渡中 → 自动推进
   2. 已过 < 最小绿灯 → KEEP (安全约束)
-  3. 当前方向已清空 (gap > 阈值) → SWITCH
-  4. 已过 >= 最大绿灯 → SWITCH (最大约束)
-  5. 对向车辆数明显高于当前方向 → SWITCH
-  6. 对向累计等待时间 > 当前 × 1.2 且 当前无排队 → SWITCH
-  7. 其他 → KEEP
+  3. 计算当前相位的目标绿灯时长:
+       target = min_green + (max_green - min_green) * current / max(current + other, 1)
+     其中 current/other 只取当前方向与对向方向的车辆数量
+  4. 当前绿灯已达到 target → SWITCH
+  5. 其他 → KEEP
 
 参数表:
   min_green: 10s  — 最短绿灯
   max_green: 30s  — 最长绿灯
   max_red:   45s  — 最长红灯
   yellow:     3s  — 黄灯过渡
-  gap:        3s  — 连续无车判定为"已清空"
-  wait_ratio: 1.2 — 对方等待超过当前 1.2 倍则触发切换
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 
@@ -39,7 +37,7 @@ class PhaseRecord:
 
 
 class VAController:
-    """感应式交通灯控制器"""
+    """基于车辆数量比较的交通灯控制器"""
 
     def __init__(
         self,
@@ -72,6 +70,8 @@ class VAController:
         self.last_wait_y: float = 0.0
         self.last_gap_x: float = 0.0
         self.last_gap_y: float = 0.0
+        self.last_target_green: float = min_green
+        self.last_compare_ratio: float = 0.5
 
         # 历史
         self.phase_history: List[PhaseRecord] = []
@@ -156,35 +156,31 @@ class VAController:
     # ── 决策 ──────────────────────────────────────────────
 
     def _decide(self) -> Tuple[bool, str]:
-        phase_str = "X" if self._phase == 0 else "Y"
-
-        # 当前方向的队列特征
         q_cur  = self.last_queue_x if self._phase == 0 else self.last_queue_y
         q_other = self.last_queue_y if self._phase == 0 else self.last_queue_x
-        w_cur  = self.last_wait_x if self._phase == 0 else self.last_wait_y
-        w_other = self.last_wait_y if self._phase == 0 else self.last_wait_x
-        gap_cur = self.last_gap_x if self._phase == 0 else self.last_gap_y
-        red_other = self._phase_elapsed  # 对方红灯持续时间 ≈ 当前绿灯已过时间
+        total = q_cur + q_other
+        if total <= 0:
+            target_green = self.min_green
+            ratio = 0.5
+        elif q_cur <= 0 and q_other > 0:
+            target_green = self.min_green
+            ratio = 0.0
+        elif q_other <= 0 and q_cur > 0:
+            target_green = self.max_green
+            ratio = 1.0
+        else:
+            ratio = q_cur / total
+            target_green = self.min_green + (self.max_green - self.min_green) * ratio
+        self.last_target_green = target_green
+        self.last_compare_ratio = ratio
 
         # 1. 最小绿灯
         if self._phase_elapsed < self.min_green:
             return False, "最小绿灯"
 
-        # 2. 清空检测: 当前方向连续无车 → 切换
-        if gap_cur >= self.gap_seconds:
-            return True, f"已清空({gap_cur:.1f}s)"
-
-        # 3. 最大绿灯
-        if self._phase_elapsed >= self.max_green:
-            return True, "最大绿灯"
-
-        # 4. 计数加权: 对向车辆数明显更高
-        if q_other > max(1, q_cur) * self.wait_ratio and q_other >= q_cur + 1:
-            return True, f"计数加权(对向{q_other} > 当前{q_cur}×{self.wait_ratio})"
-
-        # 5. 等待时间加权: 对方积累等待 > 当前 × ratio, 且当前无排队
-        if q_cur == 0 and w_other > 5.0 and w_other > w_cur * self.wait_ratio:
-            return True, f"等待加权(对方{w_other:.0f}s > 己方{w_cur:.0f}s×{self.wait_ratio})"
+        # 2. 目标绿灯时长：只由车辆数比较得到
+        if self._phase_elapsed >= target_green:
+            return True, f"比较法(当前{q_cur} / 对向{q_other} -> 目标{target_green:.1f}s)"
 
         return False, ""
 
@@ -216,6 +212,8 @@ class VAController:
             "wait_y": self.last_wait_y,
             "gap_x": self.last_gap_x,
             "gap_y": self.last_gap_y,
+            "target_green": self.last_target_green,
+            "compare_ratio": self.last_compare_ratio,
         }
 
     def get_history(self) -> List[PhaseRecord]:
@@ -236,3 +234,5 @@ class VAController:
         self.last_wait_y = 0.0
         self.last_gap_x = 0.0
         self.last_gap_y = 0.0
+        self.last_target_green = self.min_green
+        self.last_compare_ratio = 0.5
