@@ -62,6 +62,7 @@ class VAController:
         self._yellow_elapsed: float = 0.0
         self._sim_time: float = 0.0
         self._cycle_num: int = 0
+        self._target_green: float = min_green  # 当前相位的目标绿灯时长（切换时确定）
 
         # 上一帧的特征 (用于显示)
         self.last_queue_x: int = 0
@@ -156,9 +157,27 @@ class VAController:
     # ── 决策 ──────────────────────────────────────────────
 
     def _decide(self) -> Tuple[bool, str]:
+        # 1. 最小绿灯
+        if self._phase_elapsed < self.min_green:
+            return False, "最小绿灯"
+
+        # 2. 目标绿灯时长（切换时已确定，此处直接使用）
+        if self._phase_elapsed >= self._target_green:
+            q_cur  = self.last_queue_x if self._phase == 0 else self.last_queue_y
+            q_other = self.last_queue_y if self._phase == 0 else self.last_queue_x
+            return True, f"比较法(当前{q_cur} / 对向{q_other} -> 目标{self._target_green:.1f}s)"
+
+        return False, ""
+
+    def _remaining_green(self) -> float:
+        return max(0.0, self._target_green - self._phase_elapsed)
+
+    def _compute_target_green(self):
+        """根据切换时刻的车辆数计算目标绿灯时长"""
         q_cur  = self.last_queue_x if self._phase == 0 else self.last_queue_y
         q_other = self.last_queue_y if self._phase == 0 else self.last_queue_x
         total = q_cur + q_other
+
         if total <= 0:
             target_green = self.min_green
             ratio = 0.5
@@ -171,21 +190,10 @@ class VAController:
         else:
             ratio = q_cur / total
             target_green = self.min_green + (self.max_green - self.min_green) * ratio
+
+        self._target_green = target_green
         self.last_target_green = target_green
         self.last_compare_ratio = ratio
-
-        # 1. 最小绿灯
-        if self._phase_elapsed < self.min_green:
-            return False, "最小绿灯"
-
-        # 2. 目标绿灯时长：只由车辆数比较得到
-        if self._phase_elapsed >= target_green:
-            return True, f"比较法(当前{q_cur} / 对向{q_other} -> 目标{target_green:.1f}s)"
-
-        return False, ""
-
-    def _remaining_green(self) -> float:
-        return max(0.0, self.last_target_green - self._phase_elapsed)
 
     def _end_yellow(self):
         old = self._phase
@@ -193,6 +201,9 @@ class VAController:
         self._phase_elapsed = 0.0
         self._in_yellow = False
         self._cycle_num += 1
+
+        # 切换时根据当前车辆数确定下一次的目标绿灯时长
+        self._compute_target_green()
 
     # ── 状态查询 ──────────────────────────────────────────
 
@@ -225,6 +236,7 @@ class VAController:
         self._yellow_elapsed = 0.0
         self._sim_time = 0.0
         self._cycle_num = 0
+        self._target_green = self.min_green
         self.phase_history.clear()
         self.last_queue_x = 0
         self.last_queue_y = 0

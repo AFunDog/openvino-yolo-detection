@@ -172,6 +172,15 @@ class DetectControllerMixin:
 
                     start_ts = time.time()
                     while True:
+                        # 暂停时跳过所有帧处理，但保持循环以响应恢复
+                        while self.sim_paused:
+                            time.sleep(0.05)
+                            # 如果暂停期间所有流都结束了则退出
+                            if all(s["done"] for s in streams.values()):
+                                break
+                        if all(s["done"] for s in streams.values()):
+                            break
+
                         any_pending = False
                         clock = time.time() - start_ts
                         for direction, stream in streams.items():
