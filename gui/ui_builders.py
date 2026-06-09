@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QPushButton, QLabel,
     QLineEdit, QTextEdit, QFileDialog, QSlider, QComboBox, QListWidget,
     QProgressBar, QTableWidget, QSizePolicy, QAbstractItemView,
-    QHeaderView, QTableWidgetItem,
+    QHeaderView, QTableWidgetItem, QSplitter,
 )
 
 from gui.theme import *
@@ -119,16 +119,20 @@ class UIBuilderMixin:
         self.session_list.customContextMenuRequested.connect(self._on_session_context_menu)
         sidebar_layout.addWidget(self.session_list, 1)
 
-        body.addWidget(sidebar)
-
         self.stack = QStackedWidget()
         self.stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._build_yolo_page()
         self._build_traffic_page()
 
-        body.addWidget(self.stack, 1)
-        main_layout.addLayout(body, 1)
+        body_splitter = QSplitter(Qt.Orientation.Horizontal)
+        body_splitter.addWidget(sidebar)
+        body_splitter.addWidget(self.stack)
+        body_splitter.setStretchFactor(0, 0)
+        body_splitter.setStretchFactor(1, 1)
+        body_splitter.setSizes([200, 1000])
+
+        main_layout.addWidget(body_splitter, 1)
 
         status_bar = QWidget()
         status_bar.setFixedHeight(28)
@@ -219,26 +223,15 @@ class UIBuilderMixin:
         upload_layout.addLayout(row2)
         layout.addWidget(card_upload)
 
-        bottom = QHBoxLayout()
-        bottom.setSpacing(8)
-
-        video_col = QVBoxLayout()
-        video_col.setSpacing(8)
-
         card_video_x = CardWidget("X方向实时画面")
         video_layout_x = QVBoxLayout(card_video_x)
         self.video_preview_x = VideoPreviewWidget()
         video_layout_x.addWidget(self.video_preview_x)
-        video_col.addWidget(card_video_x, 1)
 
         card_video_y = CardWidget("Y方向实时画面")
         video_layout_y = QVBoxLayout(card_video_y)
         self.video_preview_y = VideoPreviewWidget()
         video_layout_y.addWidget(self.video_preview_y)
-        video_col.addWidget(card_video_y, 1)
-
-        info_col = QVBoxLayout()
-        info_col.setSpacing(8)
 
         card_stats = CardWidget()
         stats_layout = QHBoxLayout(card_stats)
@@ -249,7 +242,6 @@ class UIBuilderMixin:
         stats_layout.addWidget(self.stat_detections)
         stats_layout.addWidget(self.stat_x_count)
         stats_layout.addWidget(self.stat_y_count)
-        info_col.addWidget(card_stats)
 
         self.x_info_view = QTextEdit()
         self.x_info_view.setReadOnly(True)
@@ -281,7 +273,6 @@ class UIBuilderMixin:
         x_info_layout = QVBoxLayout(card_x_info)
         x_info_layout.addWidget(self.x_info_view)
         x_info_layout.addWidget(self.x_class_table)
-        info_col.addWidget(card_x_info, 1)
 
         self.y_info_view = QTextEdit()
         self.y_info_view.setReadOnly(True)
@@ -313,7 +304,6 @@ class UIBuilderMixin:
         y_info_layout = QVBoxLayout(card_y_info)
         y_info_layout.addWidget(self.y_info_view)
         y_info_layout.addWidget(self.y_class_table)
-        info_col.addWidget(card_y_info, 1)
 
         card_traffic = CardWidget("实时交通灯联动")
         traffic_layout = QVBoxLayout(card_traffic)
@@ -464,17 +454,37 @@ class UIBuilderMixin:
         traffic_right.addWidget(self.history_table, 1)
 
         traffic_layout.addLayout(traffic_right, 2)
-        right_col = QVBoxLayout()
-        right_col.setSpacing(8)
-        right_col.addWidget(card_traffic, 1)
 
         self.video_preview = self.video_preview_x
 
-        bottom.addLayout(video_col, 3)
-        bottom.addLayout(info_col, 2)
-        bottom.addLayout(right_col, 4)
+        video_container = QWidget()
+        video_container_layout = QVBoxLayout(video_container)
+        video_container_layout.setContentsMargins(0, 0, 0, 0)
+        video_container_layout.addWidget(card_video_x, 1)
+        video_container_layout.addWidget(card_video_y, 1)
 
-        layout.addLayout(bottom, 1)
+        info_container = QWidget()
+        info_container_layout = QVBoxLayout(info_container)
+        info_container_layout.setContentsMargins(0, 0, 0, 0)
+        info_container_layout.addWidget(card_stats)
+        info_container_layout.addWidget(card_x_info, 1)
+        info_container_layout.addWidget(card_y_info, 1)
+
+        traffic_container = QWidget()
+        traffic_container_layout = QVBoxLayout(traffic_container)
+        traffic_container_layout.setContentsMargins(0, 0, 0, 0)
+        traffic_container_layout.addWidget(card_traffic, 1)
+
+        bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
+        bottom_splitter.addWidget(video_container)
+        bottom_splitter.addWidget(info_container)
+        bottom_splitter.addWidget(traffic_container)
+        bottom_splitter.setStretchFactor(0, 3)
+        bottom_splitter.setStretchFactor(1, 2)
+        bottom_splitter.setStretchFactor(2, 4)
+        bottom_splitter.setSizes([400, 300, 500])
+
+        layout.addWidget(bottom_splitter, 1)
         self.stack.addWidget(page)
 
     def _build_traffic_page(self: _UIBuilderHost):
