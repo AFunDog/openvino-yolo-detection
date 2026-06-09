@@ -746,9 +746,11 @@ class MainWindow(QMainWindow):
             "num_objects": 0,
             "track_count_total": 0,
             "track_count_keep": 0,
+            "track_count_slow": 0,
             "track_count_filtered": 0,
             "line_count_total": 0,
             "line_count_in": 0,
+            "line_count_slow": 0,
             "line_count_out": 0,
             "axis": None,
             "axis_ready": False,
@@ -1304,9 +1306,11 @@ class MainWindow(QMainWindow):
                 state["num_objects"] = num_objects
                 state["track_count_total"] = int(counts.get("track_count_total", counts.get("line_count_total", 0)))
                 state["track_count_keep"] = int(counts.get("track_count_keep", counts.get("line_count_in", 0)))
+                state["track_count_slow"] = int(counts.get("track_count_slow", counts.get("line_count_slow", 0)))
                 state["track_count_filtered"] = int(counts.get("track_count_filtered", counts.get("line_count_out", 0)))
                 state["line_count_total"] = state["track_count_total"]
                 state["line_count_in"] = state["track_count_keep"]
+                state["line_count_slow"] = state["track_count_slow"]
                 state["line_count_out"] = state["track_count_filtered"]
                 state["axis"] = counts.get("axis")
                 state["axis_ready"] = bool(counts.get("axis_ready", False))
@@ -1419,6 +1423,7 @@ class MainWindow(QMainWindow):
                                 filter_result["track_count_total"],
                                 filter_result["track_count_keep"],
                                 filter_result["track_count_filtered"],
+                                filter_result.get("track_count_slow", 0),
                             )
                             cv2.putText(
                                 result_frame,
@@ -1470,6 +1475,7 @@ class MainWindow(QMainWindow):
                                 {
                                     "track_count_total": filter_result["track_count_total"],
                                     "track_count_keep": filter_result["track_count_keep"],
+                                    "track_count_slow": filter_result.get("track_count_slow", 0),
                                     "track_count_filtered": filter_result["track_count_filtered"],
                                     "axis": filter_result["axis"],
                                     "axis_ready": filter_result["axis_ready"],
@@ -1491,11 +1497,14 @@ class MainWindow(QMainWindow):
                             "count_method": "trajectory_direction_filter",
                             "track_count_total": stream["direction_filter"].total_count,
                             "track_count_keep": stream["direction_filter"].count_in,
+                            "track_count_slow": stream["direction_filter"].current_slow_count,
                             "track_count_filtered": stream["direction_filter"].count_out,
                             "line_count_total": stream["direction_filter"].total_count,
                             "line_count_in": stream["direction_filter"].count_in,
+                            "line_count_slow": stream["direction_filter"].current_slow_count,
                             "line_count_out": stream["direction_filter"].count_out,
                             "crossed_class_counts": stream["direction_filter"].crossed_class_counts,
+                            "slow_class_counts": stream["direction_filter"].slow_class_counts,
                             "filtered_class_counts": stream["direction_filter"].filtered_class_counts,
                             "filter_info": filter_info,
                             "video_info": {
@@ -1600,11 +1609,14 @@ class MainWindow(QMainWindow):
                 "output_path": item.get("output_path"),
                 "track_count_total": summary.get("track_count_total", summary.get("line_count_total", 0)),
                 "track_count_keep": summary.get("track_count_keep", summary.get("line_count_in", 0)),
+                "track_count_slow": summary.get("track_count_slow", summary.get("line_count_slow", 0)),
                 "track_count_filtered": summary.get("track_count_filtered", summary.get("line_count_out", 0)),
                 "line_count_total": summary.get("line_count_total", 0),
                 "line_count_in": summary.get("line_count_in", 0),
+                "line_count_slow": summary.get("line_count_slow", 0),
                 "line_count_out": summary.get("line_count_out", 0),
                 "crossed_class_counts": summary.get("crossed_class_counts", {}),
+                "slow_class_counts": summary.get("slow_class_counts", {}),
                 "total_frames": summary.get("total_frames", 0),
                 "total_detections": summary.get("total_detections", 0),
                 "avg_fps": summary.get("avg_fps", 0),

@@ -181,8 +181,10 @@ class TrajectoryDirectionFilter:
         self.count_in = 0
         self.count_out = 0
         self.crossed_class_counts = {}
+        self.slow_class_counts = {}
         self.filtered_class_counts = {}
         self.current_keep_count = 0
+        self.current_slow_count = 0
         self.current_filtered_count = 0
 
     def _update_axis(self, frame_width, frame_height):
@@ -224,7 +226,9 @@ class TrajectoryDirectionFilter:
         dx = last[0] - start[0]
         dy = last[1] - start[1]
         moved = math.hypot(dx, dy)
-        if moved < self.min_displacement or not self.axis_ready:
+        if moved < self.min_displacement:
+            return "slow", 0.0, moved
+        if not self.axis_ready:
             return "pending", 0.0, moved
 
         v = np.array([dx, dy], dtype=np.float32) / max(moved, 1e-6)
@@ -241,6 +245,7 @@ class TrajectoryDirectionFilter:
         kept_track_ids = []
         events = []
         current_keep_count = 0
+        current_slow_count = 0
         current_filtered_count = 0
 
         for idx, (box, cls_id, track_id) in enumerate(zip(boxes, class_ids, track_ids)):
@@ -256,6 +261,7 @@ class TrajectoryDirectionFilter:
                 "similarity": 0.0,
                 "moved": 0.0,
                 "counted_keep": False,
+                "counted_slow": False,
                 "counted_reject": False,
             })
             state["last"] = center.copy()
@@ -290,6 +296,26 @@ class TrajectoryDirectionFilter:
                         "moved": round(float(moved), 2),
                         "count_total": self.total_count,
                     })
+            elif status == "slow":
+                current_slow_count += 1
+                kept_indices.append(idx)
+                kept_boxes.append(box)
+                kept_confidences.append(0.0)
+                kept_class_ids.append(int(cls_id))
+                kept_track_ids.append(int(track_id))
+                if not state["counted_slow"]:
+                    state["counted_slow"] = True
+                    self.slow_class_counts[class_name] = (
+                        self.slow_class_counts.get(class_name, 0) + 1
+                    )
+                    events.append({
+                        "track_id": int(track_id),
+                        "class": class_name,
+                        "class_id": int(cls_id),
+                        "status": "slow",
+                        "similarity": round(float(similarity), 4),
+                        "moved": round(float(moved), 2),
+                    })
             elif status == "reject":
                 current_filtered_count += 1
                 if not state["counted_reject"]:
@@ -308,8 +334,7 @@ class TrajectoryDirectionFilter:
                         "count_total": self.total_count,
                     })
             else:
-                # pending 阶段：暂时保留，等待轨迹足够长后再过滤
-                current_keep_count += 1
+                # pending 阶段：保留显示，但不参与主方向统计
                 kept_indices.append(idx)
                 kept_boxes.append(box)
                 kept_confidences.append(0.0)
@@ -317,6 +342,7 @@ class TrajectoryDirectionFilter:
                 kept_track_ids.append(int(track_id))
 
         self.current_keep_count = current_keep_count
+        self.current_slow_count = current_slow_count
         self.current_filtered_count = current_filtered_count
 
         return {
@@ -328,8 +354,10 @@ class TrajectoryDirectionFilter:
             "events": events,
             "track_count_total": self.total_count,
             "track_count_keep": self.current_keep_count,
+            "track_count_slow": self.current_slow_count,
             "track_count_filtered": self.current_filtered_count,
             "filtered_class_counts": dict(self.filtered_class_counts),
+            "slow_class_counts": dict(self.slow_class_counts),
             "kept_class_counts": dict(self.crossed_class_counts),
             "axis": [float(self.axis_vec[0]), float(self.axis_vec[1])],
             "anchor": [float(self.anchor_point[0]), float(self.anchor_point[1])] if self.anchor_point is not None else None,
@@ -363,8 +391,10 @@ class TrajectoryDirectionFilter:
         self.count_in = 0
         self.count_out = 0
         self.crossed_class_counts.clear()
+        self.slow_class_counts.clear()
         self.filtered_class_counts.clear()
         self.current_keep_count = 0
+        self.current_slow_count = 0
         self.current_filtered_count = 0
 
 # ─── 数据保存 ──────────────────────────────────────────
@@ -643,7 +673,7 @@ def draw_detections(img, boxes, confidences, class_ids, classes, track_ids=None)
     return img
 
 
-def draw_counting_line(img, line_info, total_count, count_in, count_out):
+def draw_counting_line(img, line_info, total_count, count_in, count_out, count_slow=0):
     """绘制轨迹方向过滤信息。"""
     axis = line_info.get("axis", [0.0, 1.0])
     anchor = line_info.get("anchor", [img.shape[1] * 0.5, img.shape[0] * 0.5])
@@ -660,7 +690,7 @@ def draw_counting_line(img, line_info, total_count, count_in, count_out):
     cv2.circle(img, anchor_pt, 4, (0, 200, 255), -1)
     cv2.putText(
         img,
-        f"Tracks: {total_count}  Keep:{count_in}  Reject:{count_out}",
+        f"Tracks: {total_count}  Keep:{count_in}  Slow:{count_slow}  Reject:{count_out}",
         (10, 90),
         DISPLAY_LABEL_FONT,
         0.8,
@@ -822,16 +852,17 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         # 实时回调 — skipped frames 不传 detections 避免假排队
         if frame_callback:
             cb_dets = detections if is_real_detection else None
-            frame_callback(
-                result_frame,
-                frame_count,
-                avg_fps,
-                len(kept_boxes),
+        frame_callback(
+            result_frame,
+            frame_count,
+            avg_fps,
+            len(kept_boxes),
                 cb_dets,
                 fps,
                 {
                     "track_count_total": filter_result["track_count_total"],
                     "track_count_keep": filter_result["track_count_keep"],
+                    "track_count_slow": filter_result["track_count_slow"],
                     "track_count_filtered": filter_result["track_count_filtered"],
                     "axis": filter_result["axis"],
                     "axis_ready": filter_result["axis_ready"],
@@ -872,11 +903,14 @@ def detect_video(source=0, output_path=None, frame_callback=None):
         "count_method": "trajectory_direction_filter",
         "track_count_total": filter_result["track_count_total"],
         "track_count_keep": filter_result["track_count_keep"],
+        "track_count_slow": filter_result["track_count_slow"],
         "track_count_filtered": filter_result["track_count_filtered"],
         "line_count_total": filter_result["track_count_total"],
         "line_count_in": filter_result["track_count_keep"],
+        "line_count_slow": filter_result["track_count_slow"],
         "line_count_out": filter_result["track_count_filtered"],
         "crossed_class_counts": filter_result["kept_class_counts"],
+        "slow_class_counts": filter_result["slow_class_counts"],
         "filtered_class_counts": filter_result["filtered_class_counts"],
         "filter_info": filter_info,
         "video_info": {"width": width, "height": height, "fps": fps},
