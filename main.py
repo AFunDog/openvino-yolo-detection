@@ -183,71 +183,44 @@ def _iou(box_a, box_b):
     return inter / union if union > 0 else 0
 
 
-def _box_center(box):
-    return ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
-
-
-def _box_diag(box):
-    return math.hypot(float(box[2] - box[0]), float(box[3] - box[1]))
-
-
 class SimpleTracker:
     """基于 IoU 的简易目标追踪器，用于跨帧去重统计"""
 
-    def __init__(self, iou_threshold=0.18, max_lost=8):
+    def __init__(self, iou_threshold=0.3, max_lost=5):
         self.next_id = 1
-        self.tracks = {}        # track_id -> {"box": [...], "center": (x, y), "class_id": int, "lost": int}
+        self.tracks = {}        # track_id -> {"box": [...], "class_id": int, "lost": int}
         self.iou_threshold = iou_threshold
         self.max_lost = max_lost
         self.unique_class_counts = {}  # 去重后的类别计数
-
-    def _match_score(self, track, box, cls_id):
-        """综合 IoU、中心距离与类别一致性计算匹配分数。"""
-        iou_val = _iou(box, track["box"])
-        cx, cy = _box_center(box)
-        tcx, tcy = track.get("center", _box_center(track["box"]))
-        dist = math.hypot(cx - tcx, cy - tcy)
-        track_diag = max(_box_diag(track["box"]), 1.0)
-        det_diag = max(_box_diag(box), 1.0)
-        scale = max(track_diag, det_diag)
-        center_score = max(0.0, 1.0 - dist / (scale * 1.5))
-        class_bonus = 0.08 if cls_id == track.get("class_id") else 0.0
-        score = 0.55 * iou_val + 0.37 * center_score + class_bonus
-        return score, iou_val, dist
 
     def update(self, boxes, class_ids):
         """更新追踪器，返回每帧每个检测的 track_id"""
         matched_old = set()  # 已匹配的旧轨迹 id
         matched_new = set()  # 已匹配的新检测索引
 
-        # 构建候选匹配并按得分从高到低进行贪心分配
-        candidates = []
-        for tid, trk in self.tracks.items():
-            for i, (box, cls) in enumerate(zip(boxes, class_ids)):
-                score, iou_val, dist = self._match_score(trk, box, cls)
-                if score >= self.iou_threshold and (iou_val >= 0.05 or dist <= max(_box_diag(trk["box"]), _box_diag(box)) * 1.8):
-                    candidates.append((score, tid, i, iou_val, dist))
-        candidates.sort(reverse=True, key=lambda item: item[0])
-
+        # 构建匹配关系：旧轨迹 ↔ 新检测
         matches = []  # (track_id, new_idx)
-        for score, tid, idx, _, _ in candidates:
-            if tid in matched_old or idx in matched_new:
-                continue
-            matches.append((tid, idx))
-            matched_old.add(tid)
-            matched_new.add(idx)
+        for tid, trk in self.tracks.items():
+            best_iou = 0
+            best_idx = -1
+            for i, (box, cls) in enumerate(zip(boxes, class_ids)):
+                if i in matched_new or cls != trk["class_id"]:
+                    continue
+                iou_val = _iou(box, trk["box"])
+                if iou_val > best_iou:
+                    best_iou = iou_val
+                    best_idx = i
+            if best_idx >= 0 and best_iou >= self.iou_threshold:
+                matches.append((tid, best_idx))
+                matched_old.add(tid)
+                matched_new.add(best_idx)
 
         # 构建新轨迹字典
         new_tracks = {}
 
         # 更新已匹配的轨迹
         for tid, new_idx in matches:
-            new_tracks[tid] = {
-                "box": boxes[new_idx],
-                "center": _box_center(boxes[new_idx]),
-                "class_id": class_ids[new_idx],
-                "lost": 0,
-            }
+            new_tracks[tid] = {"box": boxes[new_idx], "class_id": class_ids[new_idx], "lost": 0}
 
         # 保留短暂丢失的轨迹
         for tid, trk in self.tracks.items():
@@ -258,20 +231,14 @@ class SimpleTracker:
 
         # 未匹配的新检测 → 分配新 ID
         track_ids = [0] * len(boxes)
-        track_id_map = {new_idx: tid for tid, new_idx in matches}
-        for new_idx, tid in track_id_map.items():
+        for tid, new_idx in matches:
             track_ids[new_idx] = tid
 
         for i, (box, cls) in enumerate(zip(boxes, class_ids)):
             if i not in matched_new:
                 tid = self.next_id
                 self.next_id += 1
-                new_tracks[tid] = {
-                    "box": box,
-                    "center": _box_center(box),
-                    "class_id": cls,
-                    "lost": 0,
-                }
+                new_tracks[tid] = {"box": box, "class_id": cls, "lost": 0}
                 track_ids[i] = tid
                 # 新目标计入去重统计
                 class_name = CLASS_NAMES[cls] if 0 <= cls < len(CLASS_NAMES) else f"class_{cls}"
