@@ -63,6 +63,7 @@ class VAController:
         self._sim_time: float = 0.0
         self._cycle_num: int = 0
         self._target_green: float = min_green  # 当前相位的目标绿灯时长（切换时确定）
+        self._target_reason: str = "初始默认"  # 目标绿灯的来源原因
 
         # 上一帧的特征 (用于显示)
         self.last_queue_x: int = 0
@@ -163,9 +164,7 @@ class VAController:
 
         # 2. 目标绿灯时长（切换时已确定，此处直接使用）
         if self._phase_elapsed >= self._target_green:
-            q_cur  = self.last_queue_x if self._phase == 0 else self.last_queue_y
-            q_other = self.last_queue_y if self._phase == 0 else self.last_queue_x
-            return True, f"比较法(当前{q_cur} / 对向{q_other} -> 目标{self._target_green:.1f}s)"
+            return True, self._target_reason
 
         return False, ""
 
@@ -181,17 +180,22 @@ class VAController:
         if total <= 0:
             target_green = self.min_green
             ratio = 0.5
+            reason = f"无车辆，最小绿灯{self.min_green:.0f}s"
         elif q_cur <= 0 and q_other > 0:
             target_green = self.min_green
             ratio = 0.0
+            reason = f"本向无车({q_cur})，最小绿灯{self.min_green:.0f}s"
         elif q_other <= 0 and q_cur > 0:
             target_green = self.max_green
             ratio = 1.0
+            reason = f"对向无车({q_other})，最大绿灯{self.max_green:.0f}s"
         else:
             ratio = q_cur / total
             target_green = self.min_green + (self.max_green - self.min_green) * ratio
+            reason = f"比较法(当前{q_cur}/对向{q_other}={ratio:.0%} -> 目标{target_green:.1f}s)"
 
         self._target_green = target_green
+        self._target_reason = reason
         self.last_target_green = target_green
         self.last_compare_ratio = ratio
 
@@ -237,6 +241,7 @@ class VAController:
         self._sim_time = 0.0
         self._cycle_num = 0
         self._target_green = self.min_green
+        self._target_reason = "初始默认"
         self.phase_history.clear()
         self.last_queue_x = 0
         self.last_queue_y = 0

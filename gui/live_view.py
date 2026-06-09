@@ -378,7 +378,6 @@ class LiveViewMixin:
         if history:
             self.history_table.setRowCount(0)
             for rec in reversed(history[-20:]):
-                r = self.history_table.rowCount()
                 self.history_table.insertRow(0)
                 self.history_table.setItem(0, 0, QTableWidgetItem(rec.phase))
                 self.history_table.setItem(0, 1, QTableWidgetItem(f"{rec.duration:.1f}s"))

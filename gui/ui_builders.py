@@ -324,7 +324,7 @@ class UIBuilderMixin:
         info_col.addWidget(card_y_info, 1)
 
         card_traffic = CardWidget("实时交通灯联动")
-        traffic_layout = QHBoxLayout(card_traffic)
+        traffic_layout = QVBoxLayout(card_traffic)
         traffic_layout.setSpacing(8)
 
         traffic_left = QVBoxLayout()
