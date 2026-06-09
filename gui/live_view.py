@@ -64,8 +64,6 @@ class _LiveViewHost(Protocol):
     y_class_table: Any
     overview_view: Any
     phase_label: Any
-    xl_indicator: Any
-    yl_indicator: Any
     video_preview: Any
     video_preview_x: Any
     video_preview_y: Any
@@ -345,9 +343,6 @@ class LiveViewMixin:
         self.canvas.update_state(
             x_light, y_light, feats["queue_x"], feats["queue_y"], countdown
         )
-
-        self.xl_indicator.set_active(x_light)
-        self.yl_indicator.set_active(y_light)
 
         if is_yellow:
             self.phase_label.setText("黄灯过渡")

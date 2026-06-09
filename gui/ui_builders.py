@@ -336,11 +336,6 @@ class UIBuilderMixin:
         traffic_right = QVBoxLayout()
         traffic_right.setSpacing(8)
 
-        self.xl_indicator = TrafficLightIndicator("X 方向", "blue")
-        self.yl_indicator = TrafficLightIndicator("Y 方向", "orange")
-        traffic_right.addWidget(self.xl_indicator)
-        traffic_right.addWidget(self.yl_indicator)
-
         metrics_lbl = QLabel("控制指标")
         _ds(metrics_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px; font-weight: bold;")
         traffic_right.addWidget(metrics_lbl)
