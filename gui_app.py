@@ -975,6 +975,25 @@ class MainWindow(QMainWindow):
         detail_layout.addWidget(self.session_detail)
         left_col.addWidget(card_detail)
 
+        card_overview = CardWidget("运行概览")
+        overview_layout = QVBoxLayout(card_overview)
+        self.overview_view = QTextEdit()
+        self.overview_view.setReadOnly(True)
+        self.overview_view.setFixedHeight(112)
+        self.overview_view.setPlaceholderText("等待实时数据...")
+        _ds(self.overview_view, lambda: f"""
+            QTextEdit {{
+                border: 1px solid {C_SIDEBAR_BORDER};
+                border-radius: 8px;
+                padding: 8px 10px;
+                background: {C_DETAIL_BG};
+                color: {C_TEXT_PRIMARY.name()};
+                font-size: 12px;
+            }}
+        """)
+        overview_layout.addWidget(self.overview_view)
+        left_col.addWidget(card_overview)
+
         card_class = CardWidget("类别统计")
         class_layout = QVBoxLayout(card_class)
         self.class_table = QTableWidget(0, 3)
@@ -987,11 +1006,12 @@ class MainWindow(QMainWindow):
         self.class_table.verticalHeader().setVisible(False)
         self.class_table.verticalHeader().setDefaultSectionSize(32)
         self.class_table.setAlternatingRowColors(True)
-        self.class_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.class_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.class_table.setFixedHeight(216)
         class_layout.setContentsMargins(0, 0, 0, 0)
         class_layout.setSpacing(0)
         class_layout.addWidget(self.class_table)
-        left_col.addWidget(card_class, 1)
+        left_col.addWidget(card_class)
 
         left_w = QWidget()
         left_w.setLayout(left_col)
@@ -1032,6 +1052,26 @@ class MainWindow(QMainWindow):
         self.yl_indicator = TrafficLightIndicator("Y 方向", "orange")
         traffic_right.addWidget(self.xl_indicator)
         traffic_right.addWidget(self.yl_indicator)
+
+        metrics_lbl = QLabel("控制指标")
+        _ds(metrics_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px; font-weight: bold;")
+        traffic_right.addWidget(metrics_lbl)
+
+        self.metrics_view = QTextEdit()
+        self.metrics_view.setReadOnly(True)
+        self.metrics_view.setFixedHeight(112)
+        self.metrics_view.setPlaceholderText("等待检测数据...")
+        _ds(self.metrics_view, lambda: f"""
+            QTextEdit {{
+                border: 1px solid {C_SIDEBAR_BORDER};
+                border-radius: 8px;
+                padding: 8px 10px;
+                background: {C_DETAIL_BG};
+                color: {C_TEXT_PRIMARY.name()};
+                font-size: 12px;
+            }}
+        """)
+        traffic_right.addWidget(self.metrics_view)
 
         phase_row = QHBoxLayout()
         phase_lbl = QLabel("阶段:")
@@ -1795,6 +1835,12 @@ class MainWindow(QMainWindow):
             f"过线总数: {vehicle_count}  进线:{count_in}  出线:{count_out}  FPS: {fps_val:.1f}"
         )
         self.session_detail.setText(info)
+        self.overview_view.setText(
+            f"会话: 单视频检测\n"
+            f"总帧数: {frames}  总检测: {total}\n"
+            f"过线: {vehicle_count}  进线:{count_in}  出线:{count_out}\n"
+            f"后端: {backend_label}  分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}"
+        )
 
     def _render_direction_pair_session(self, summary):
         direction_videos = summary.get("direction_videos", {})
@@ -1844,6 +1890,12 @@ class MainWindow(QMainWindow):
             f"可直接作为交通灯仿真的 X / Y 决策输入"
         )
         self.session_detail.setText(info)
+        self.overview_view.setText(
+            f"会话: 双方向聚合\n"
+            f"X过线:{x_count}  Y过线:{y_count}  总过线:{total_count}\n"
+            f"总帧数: {total_frames}  总检测: {total_detections}\n"
+            f"后端: X={x_backend} / Y={y_backend}"
+        )
 
     # ── 交通灯仿真 (Vehicle-Actuated) ────────────────────
 
@@ -2155,6 +2207,25 @@ class MainWindow(QMainWindow):
             )
 
         mode_tag = "实时" if self._sim_live_mode else ("双视频" if self.va_pair_summary is not None else "VA")
+        metrics_text = (
+            f"模式: {mode_tag}\n"
+            f"X: queue={feats['queue_x']}  wait={feats['wait_x']:.0f}s  gap={feats['gap_x']:.1f}s  arrival={feats['arrival_x']:.1f}/s\n"
+            f"Y: queue={feats['queue_y']}  wait={feats['wait_y']:.0f}s  gap={feats['gap_y']:.1f}s  arrival={feats['arrival_y']:.1f}/s\n"
+            f"过线: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}  总={feats.get('line_count_x', 0) + feats.get('line_count_y', 0)}\n"
+            f"相位: {state['phase']}  已过绿灯:{state['phase_elapsed']:.1f}s  黄灯:{state['yellow_elapsed']:.1f}s"
+        )
+        self.metrics_view.setText(metrics_text)
+
+        countdown_text = "--" if countdown is None else f"{math.ceil(countdown)}s"
+        overview_text = (
+            f"{mode_tag} / 周期 #{state['cycle_num'] + 1}\n"
+            f"阶段: {state['phase']}  倒计时: {countdown_text}\n"
+            f"X: queue={feats['queue_x']} wait={feats['wait_x']:.0f}s gap={feats['gap_x']:.1f}s arrival={feats['arrival_x']:.1f}/s\n"
+            f"Y: queue={feats['queue_y']} wait={feats['wait_y']:.0f}s gap={feats['gap_y']:.1f}s arrival={feats['arrival_y']:.1f}/s\n"
+            f"过线: X={feats.get('line_count_x', 0)}  Y={feats.get('line_count_y', 0)}"
+        )
+        self.overview_view.setText(overview_text)
+
         if self._sim_live_mode:
             self.cycle_info.setText(
                 f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
