@@ -34,7 +34,6 @@ class _UIBuilderHost(Protocol):
     stat_detections: Any
     stat_x_count: Any
     stat_y_count: Any
-    stat_fps: Any
     session_detail: Any
     overview_view: Any
     class_table: Any
@@ -247,11 +246,9 @@ class UIBuilderMixin:
         self.stat_detections = StatLabel("0", "总车辆数", "primary")
         self.stat_x_count = StatLabel("0", "X路车辆数", "blue")
         self.stat_y_count = StatLabel("0", "Y路车辆数", "orange")
-        self.stat_fps = StatLabel("0", "FPS", "orange")
         stats_layout.addWidget(self.stat_detections)
         stats_layout.addWidget(self.stat_x_count)
         stats_layout.addWidget(self.stat_y_count)
-        stats_layout.addWidget(self.stat_fps)
         info_col.addWidget(card_stats)
 
         self.x_info_view = QTextEdit()

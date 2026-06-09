@@ -73,7 +73,6 @@ class _LiveViewHost(Protocol):
     stat_detections: Any
     stat_x_count: Any
     stat_y_count: Any
-    stat_fps: Any
     _new_live_direction_state: Any
     _reset_live_dual_state: Any
     _backend_label: Any
@@ -473,7 +472,6 @@ class LiveViewMixin:
             self.stat_detections.set_value(str(total_objects))
             self.stat_x_count.set_value(str(x_valid))
             self.stat_y_count.set_value(str(y_valid))
-            self.stat_fps.set_value(f"{avg_fps:.1f}")
             self.x_info_view.setText(
                 f"视频: {Path(str(x_state.get('source', 'X'))).name}\n"
                 f"后端: {self._backend_label(x_state.get('backend'))}\n"

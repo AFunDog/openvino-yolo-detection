@@ -26,7 +26,6 @@ class _SessionViewHost(Protocol):
     stat_detections: Any
     stat_x_count: Any
     stat_y_count: Any
-    stat_fps: Any
     class_table: Any
     session_detail: Any
     overview_view: Any
@@ -183,7 +182,6 @@ class SessionViewMixin:
         self.stat_detections.set_value(str(total))
         self.stat_x_count.set_value(str(vehicle_count))
         self.stat_y_count.set_value("--")
-        self.stat_fps.set_value(str(round(fps_val, 1)))
 
         if hasattr(self, "class_table"):
             self.class_table.setRowCount(0)
@@ -256,7 +254,6 @@ class SessionViewMixin:
         self.stat_detections.set_value(str(total_detections))
         self.stat_x_count.set_value(str(x_count))
         self.stat_y_count.set_value(str(y_count))
-        self.stat_fps.set_value("--")
 
         info = (
             f"类型: 同一路口双方向视频\n"
