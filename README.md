@@ -52,6 +52,20 @@ python main.py video test/input/traffic.mp4 test/output/output.mp4
 python main.py camera 0 test/output/output.mp4
 ```
 
+### 模型下载与转换（可选）
+
+项目已自带 OVMS 模型文件，通常无需手动下载。如需获取原始 ONNX 模型然后转换为 OpenVINO IR：
+
+```powershell
+# 下载 ONNX 模型
+.\scripts\downloader.ps1 <model_name>
+
+# 转换为 OpenVINO IR
+.\scripts\converter.ps1 <model_name>
+```
+
+> 使用前需安装 OpenVINO 开发工具：`pip install openvino-dev`
+
 ### 理论通行效率评估
 
 ```bash
@@ -76,8 +90,16 @@ python scripts/evaluate_signal_efficiency.py data/detection_pair_xxx/summary.jso
 │   ├── __init__.py              # 算法模块入口
 │   ├── data_extractor.py        # 方向标定、排队分类、特征提取
 │   └── va_controller.py         # Vehicle-Actuated 控制器
+├── gui/                         # GUI 组件
+│   ├── theme_manager.py         # 主题管理器（明暗调色板 + QPalette）
+│   ├── theme.py                 # 主题辅助函数与 QSS
+│   ├── widgets.py               # 自定义控件
+│   ├── ui_builders.py           # UI 构建器
+│   ├── live_view.py             # 实时检测页面
+│   ├── session_view.py          # 会话管理页面
+│   ├── detect_controller.py     # 检测控制器
+│   └── utils.py                 # GUI 工具函数
 ├── gui_app.py                   # PyQt6 桌面应用
-├── theme_manager.py             # 主题管理器（明暗调色板 + QPalette）
 ├── main.py                      # YOLOv26 检测（ONNX Runtime / OpenVINO）
 ├── traffic_light_console.py     # 控制台交通灯模拟
 ├── traffic_light_raspberry.py   # 树莓派 GPIO 控制
@@ -91,7 +113,8 @@ python scripts/evaluate_signal_efficiency.py data/detection_pair_xxx/summary.jso
 │   └── yolo-v26/                # YOLOv26 模型（ONNX + OpenVINO IR）
 ├── scripts/
 │   ├── downloader.ps1           # 模型下载
-│   └── converter.ps1            # 模型转换
+│   ├── converter.ps1            # 模型转换
+│   └── evaluate_signal_efficiency.py  # 理论通行效率评估
 └── test/
     └── output/                  # 检测输出
 ```
