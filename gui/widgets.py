@@ -190,15 +190,39 @@ class IntersectionCanvas(QWidget):
         lbl_w = label_fs * 3.0
         lbl_h = label_fs * 1.6
 
+        # 根据交通灯状态设置路名标签颜色
+        if self.x_color == "green":
+            x_label_color = gui_theme.C_GREEN
+            x_bg_color = QColor(gui_theme.C_GREEN.red(), gui_theme.C_GREEN.green(), gui_theme.C_GREEN.blue(), 120)
+        elif self.x_color == "red":
+            x_label_color = gui_theme.C_RED
+            x_bg_color = QColor(gui_theme.C_RED.red(), gui_theme.C_RED.green(), gui_theme.C_RED.blue(), 120)
+        else:
+            x_label_color = QColor(255, 255, 255, 220)
+            x_bg_color = QColor(0, 0, 0, 90)
+
+        if self.y_color == "green":
+            y_label_color = gui_theme.C_GREEN
+            y_bg_color = QColor(gui_theme.C_GREEN.red(), gui_theme.C_GREEN.green(), gui_theme.C_GREEN.blue(), 120)
+        elif self.y_color == "red":
+            y_label_color = gui_theme.C_RED
+            y_bg_color = QColor(gui_theme.C_RED.red(), gui_theme.C_RED.green(), gui_theme.C_RED.blue(), 120)
+        else:
+            y_label_color = QColor(255, 255, 255, 220)
+            y_bg_color = QColor(0, 0, 0, 90)
+
         xr = QRectF(cx / 2 - road_w / 4 - lbl_w / 2, cy - lbl_h / 2, lbl_w, lbl_h)
-        p.setBrush(QBrush(QColor(0, 0, 0, 90)))
+        p.setBrush(QBrush(x_bg_color))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(xr, 4, 4)
-        p.setPen(QPen(QColor(255, 255, 255, 220)))
+        p.setPen(QPen(x_label_color))
         p.drawText(xr, Qt.AlignmentFlag.AlignCenter, "X 路")
 
         yr = QRectF(cx - lbl_w / 2, cy / 2 - road_w / 4 - lbl_h / 2, lbl_w, lbl_h)
+        p.setBrush(QBrush(y_bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(yr, 4, 4)
+        p.setPen(QPen(y_label_color))
         p.drawText(yr, Qt.AlignmentFlag.AlignCenter, "Y 路")
 
         p.end()
