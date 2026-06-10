@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import theme_manager as tm
+from gui import theme_manager as tm
 
 from PyQt6.QtWidgets import QApplication
 

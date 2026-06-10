@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QImage, QFont
 
-import theme_manager as tm
+from gui import theme_manager as tm
 from gui.theme import *
 from gui.widgets import NavButton, StatLabel, TrafficLightIndicator
 from gui.live_view import LiveViewMixin
