@@ -432,6 +432,7 @@ class StatLabel(QWidget):
     def __init__(self, value="0", label="", color_key="primary", parent=None):
         super().__init__(parent)
         self._color_key = color_key
+        self.setMinimumHeight(48)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)

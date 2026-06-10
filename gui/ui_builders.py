@@ -228,24 +228,9 @@ class UIBuilderMixin:
         self.video_preview_x = VideoPreviewWidget()
         video_layout_x.addWidget(self.video_preview_x)
 
-        card_video_y = CardWidget("Y方向实时画面")
-        video_layout_y = QVBoxLayout(card_video_y)
-        self.video_preview_y = VideoPreviewWidget()
-        video_layout_y.addWidget(self.video_preview_y)
-
-        card_stats = CardWidget()
-        stats_layout = QHBoxLayout(card_stats)
-        stats_layout.setSpacing(16)
-        self.stat_detections = StatLabel("0", "总车辆数", "primary")
-        self.stat_x_count = StatLabel("0", "X路车辆数", "blue")
-        self.stat_y_count = StatLabel("0", "Y路车辆数", "orange")
-        stats_layout.addWidget(self.stat_detections)
-        stats_layout.addWidget(self.stat_x_count)
-        stats_layout.addWidget(self.stat_y_count)
-
         self.x_info_view = QTextEdit()
         self.x_info_view.setReadOnly(True)
-        self.x_info_view.setMinimumHeight(108)
+        self.x_info_view.setMaximumHeight(60)
         self.x_info_view.setPlaceholderText("X 方向车辆信息")
         _ds(self.x_info_view, lambda: f"""
             QTextEdit {{
@@ -267,16 +252,20 @@ class UIBuilderMixin:
         self.x_class_table.verticalHeader().setVisible(False)
         self.x_class_table.verticalHeader().setDefaultSectionSize(28)
         self.x_class_table.setAlternatingRowColors(True)
-        self.x_class_table.setMinimumHeight(220)
+        self.x_class_table.setMaximumHeight(150)
         card_x_info = CardWidget("X 方向车辆统计")
-        card_x_info.setMinimumHeight(340)
         x_info_layout = QVBoxLayout(card_x_info)
         x_info_layout.addWidget(self.x_info_view)
         x_info_layout.addWidget(self.x_class_table)
 
+        card_video_y = CardWidget("Y方向实时画面")
+        video_layout_y = QVBoxLayout(card_video_y)
+        self.video_preview_y = VideoPreviewWidget()
+        video_layout_y.addWidget(self.video_preview_y)
+
         self.y_info_view = QTextEdit()
         self.y_info_view.setReadOnly(True)
-        self.y_info_view.setMinimumHeight(108)
+        self.y_info_view.setMaximumHeight(60)
         self.y_info_view.setPlaceholderText("Y 方向车辆信息")
         _ds(self.y_info_view, lambda: f"""
             QTextEdit {{
@@ -298,24 +287,25 @@ class UIBuilderMixin:
         self.y_class_table.verticalHeader().setVisible(False)
         self.y_class_table.verticalHeader().setDefaultSectionSize(28)
         self.y_class_table.setAlternatingRowColors(True)
-        self.y_class_table.setMinimumHeight(220)
+        self.y_class_table.setMaximumHeight(150)
         card_y_info = CardWidget("Y 方向车辆统计")
-        card_y_info.setMinimumHeight(340)
         y_info_layout = QVBoxLayout(card_y_info)
         y_info_layout.addWidget(self.y_info_view)
         y_info_layout.addWidget(self.y_class_table)
 
         card_traffic = CardWidget("实时交通灯联动")
-        traffic_layout = QVBoxLayout(card_traffic)
-        traffic_layout.setSpacing(8)
+        traffic_main_layout = QVBoxLayout(card_traffic)
+        traffic_main_layout.setContentsMargins(8, 8, 8, 8)
+        traffic_main_layout.setSpacing(8)
 
-        traffic_left = QVBoxLayout()
+        traffic_top = QHBoxLayout()
+        traffic_top.setSpacing(8)
+
         self.canvas = IntersectionCanvas()
-        traffic_left.addWidget(self.canvas, 1)
-        traffic_layout.addLayout(traffic_left, 3)
+        traffic_top.addWidget(self.canvas, 3)
 
         traffic_right = QVBoxLayout()
-        traffic_right.setSpacing(8)
+        traffic_right.setSpacing(6)
 
         metrics_lbl = QLabel("控制指标")
         _ds(metrics_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px; font-weight: bold;")
@@ -323,7 +313,7 @@ class UIBuilderMixin:
 
         self.metrics_view = QTextEdit()
         self.metrics_view.setReadOnly(True)
-        self.metrics_view.setFixedHeight(112)
+        self.metrics_view.setFixedHeight(90)
         self.metrics_view.setPlaceholderText("等待检测数据...")
         _ds(self.metrics_view, lambda: f"""
             QTextEdit {{
@@ -352,7 +342,7 @@ class UIBuilderMixin:
         _ds(timer_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
         timer_row.addWidget(timer_lbl)
         self.timer_text = QLabel("--")
-        _ds(self.timer_text, lambda: f"color: {C_GREEN.name()}; font-size: 14px; font-weight: bold;")
+        _ds(self.timer_text, lambda: f"color: {C_GREEN.name()}; font-size: 16px; font-weight: bold;")
         timer_row.addWidget(self.timer_text)
         timer_row.addStretch()
         traffic_right.addLayout(timer_row)
@@ -367,64 +357,74 @@ class UIBuilderMixin:
         traffic_right.addWidget(self.progress_bar)
 
         btn_row = QHBoxLayout()
-        self.btn_start_sim = QPushButton("▶ 启动联动")
-        self.btn_start_sim.setFixedSize(96, 32)
+        self.btn_start_sim = QPushButton("▶ 启动")
+        self.btn_start_sim.setFixedSize(70, 30)
         _ds(self.btn_start_sim, lambda: self._btn_style(C_GREEN))
         self.btn_start_sim.clicked.connect(self._on_start_sim)
         btn_row.addWidget(self.btn_start_sim)
 
         self.btn_pause_sim = QPushButton("⏸ 暂停")
-        self.btn_pause_sim.setFixedSize(90, 32)
+        self.btn_pause_sim.setFixedSize(70, 30)
         _ds(self.btn_pause_sim, lambda: self._btn_style(C_YELLOW))
         self.btn_pause_sim.clicked.connect(self._on_pause_sim)
         btn_row.addWidget(self.btn_pause_sim)
 
         self.btn_reset_sim = QPushButton("■ 重置")
-        self.btn_reset_sim.setFixedSize(90, 32)
+        self.btn_reset_sim.setFixedSize(70, 30)
         _ds(self.btn_reset_sim, lambda: self._btn_style(C_RED))
         self.btn_reset_sim.clicked.connect(self._on_reset_sim)
         btn_row.addWidget(self.btn_reset_sim)
         traffic_right.addLayout(btn_row)
 
+        speed_row = QHBoxLayout()
         speed_lbl = QLabel("速度")
         _ds(speed_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        traffic_right.addWidget(speed_lbl)
-        speed_row = QHBoxLayout()
+        speed_row.addWidget(speed_lbl)
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
         self.speed_slider.setRange(1, 20)
         self.speed_slider.setValue(5)
         self.speed_slider.valueChanged.connect(lambda v: setattr(self, 'sim_speed', float(v)))
-        speed_row.addWidget(self.speed_slider)
+        speed_row.addWidget(self.speed_slider, 1)
         self.speed_val = QLabel("5x")
         _ds(self.speed_val, lambda: f"color: {C_TEXT_PRIMARY.name()}; font-size: 12px; font-weight: bold;")
         self.speed_slider.valueChanged.connect(lambda v: self.speed_val.setText(f"{v}x"))
         speed_row.addWidget(self.speed_val)
         traffic_right.addLayout(speed_row)
 
+        ds_row = QHBoxLayout()
         ds_lbl = QLabel("数据源")
         _ds(ds_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        traffic_right.addWidget(ds_lbl)
+        ds_row.addWidget(ds_lbl)
         self.data_source_combo = QComboBox()
         self.data_source_combo.addItem("(默认)")
         self.data_source_combo.addItem("实时检测")
-        traffic_right.addWidget(self.data_source_combo)
+        ds_row.addWidget(self.data_source_combo, 1)
+        traffic_right.addLayout(ds_row)
 
         ci_lbl = QLabel("感应控制状态")
-        _ds(ci_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(ci_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px; font-weight: bold;")
         traffic_right.addWidget(ci_lbl)
         self.cycle_info = QTextEdit()
         self.cycle_info.setReadOnly(True)
-        self.cycle_info.setFixedHeight(88)
         self.cycle_info.setPlaceholderText("导入 X/Y 视频后点击开始检测")
-        traffic_right.addWidget(self.cycle_info)
+        _ds(self.cycle_info, lambda: f"""
+            QTextEdit {{
+                border: 1px solid {C_SIDEBAR_BORDER};
+                border-radius: 8px;
+                padding: 8px 10px;
+                background: {C_DETAIL_BG};
+                color: {C_TEXT_PRIMARY.name()};
+                font-size: 12px;
+            }}
+        """)
+        traffic_right.addWidget(self.cycle_info, 1)
 
         eff_lbl = QLabel("理论通行效率")
-        _ds(eff_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+        _ds(eff_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px; font-weight: bold;")
         traffic_right.addWidget(eff_lbl)
         self.efficiency_view = QTextEdit()
         self.efficiency_view.setReadOnly(True)
-        self.efficiency_view.setFixedHeight(96)
-        self.efficiency_view.setPlaceholderText("实时检测启动后，将在每次红绿灯切换后刷新固定配时与自适应配时的理论对比")
+        self.efficiency_view.setPlaceholderText("实时检测启动后刷新对比")
         _ds(self.efficiency_view, lambda: f"""
             QTextEdit {{
                 border: 1px solid {C_SIDEBAR_BORDER};
@@ -435,11 +435,14 @@ class UIBuilderMixin:
                 font-size: 12px;
             }}
         """)
-        traffic_right.addWidget(self.efficiency_view)
+        traffic_right.addWidget(self.efficiency_view, 1)
+
+        traffic_top.addLayout(traffic_right, 1)
+        traffic_main_layout.addLayout(traffic_top, 3)
 
         hist_lbl = QLabel("切换记录")
-        _ds(hist_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
-        traffic_right.addWidget(hist_lbl)
+        _ds(hist_lbl, lambda: f"color: {C_TEXT_MUTED.name()}; font-size: 12px; font-weight: bold;")
+        traffic_main_layout.addWidget(hist_lbl)
         self.history_table = QTableWidget(0, 3)
         self.history_table.setHorizontalHeaderLabels(["相位", "时长", "原因"])
         self.history_table.horizontalHeader().setStretchLastSection(True)
@@ -450,25 +453,37 @@ class UIBuilderMixin:
         self.history_table.verticalHeader().setVisible(False)
         self.history_table.verticalHeader().setDefaultSectionSize(28)
         self.history_table.setAlternatingRowColors(True)
-        self.history_table.setFixedHeight(160)
-        traffic_right.addWidget(self.history_table, 1)
-
-        traffic_layout.addLayout(traffic_right, 2)
+        self.history_table.setFixedHeight(120)
+        traffic_main_layout.addWidget(self.history_table, 1)
 
         self.video_preview = self.video_preview_x
 
-        video_container = QWidget()
-        video_container_layout = QVBoxLayout(video_container)
-        video_container_layout.setContentsMargins(0, 0, 0, 0)
-        video_container_layout.addWidget(card_video_x, 1)
-        video_container_layout.addWidget(card_video_y, 1)
+        stats_lbl = QLabel("实时车辆指标")
+        _ds(stats_lbl, lambda: f"color: {C_TEXT_SECONDARY.name()}; font-size: 12px; font-weight: bold;")
 
-        info_container = QWidget()
-        info_container_layout = QVBoxLayout(info_container)
-        info_container_layout.setContentsMargins(0, 0, 0, 0)
-        info_container_layout.addWidget(card_stats)
-        info_container_layout.addWidget(card_x_info, 1)
-        info_container_layout.addWidget(card_y_info, 1)
+        card_stats = CardWidget()
+        card_stats.setMinimumHeight(84)
+        card_stats.setMaximumHeight(96)
+        stats_layout = QHBoxLayout(card_stats)
+        stats_layout.setSpacing(16)
+        stats_layout.setContentsMargins(12, 8, 12, 8)
+        self.stat_detections = StatLabel("0", "总车辆数", "primary")
+        self.stat_x_count = StatLabel("0", "X路车辆数", "blue")
+        self.stat_y_count = StatLabel("0", "Y路车辆数", "orange")
+        stats_layout.addWidget(self.stat_detections)
+        stats_layout.addWidget(self.stat_x_count)
+        stats_layout.addWidget(self.stat_y_count)
+
+        left_container = QWidget()
+        left_container_layout = QVBoxLayout(left_container)
+        left_container_layout.setContentsMargins(0, 0, 0, 0)
+        left_container_layout.setSpacing(8)
+        left_container_layout.addWidget(stats_lbl)
+        left_container_layout.addWidget(card_stats)
+        left_container_layout.addWidget(card_video_x, 2)
+        left_container_layout.addWidget(card_x_info)
+        left_container_layout.addWidget(card_video_y, 2)
+        left_container_layout.addWidget(card_y_info)
 
         traffic_container = QWidget()
         traffic_container_layout = QVBoxLayout(traffic_container)
@@ -476,13 +491,11 @@ class UIBuilderMixin:
         traffic_container_layout.addWidget(card_traffic, 1)
 
         bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
-        bottom_splitter.addWidget(video_container)
-        bottom_splitter.addWidget(info_container)
+        bottom_splitter.addWidget(left_container)
         bottom_splitter.addWidget(traffic_container)
-        bottom_splitter.setStretchFactor(0, 3)
-        bottom_splitter.setStretchFactor(1, 2)
-        bottom_splitter.setStretchFactor(2, 4)
-        bottom_splitter.setSizes([400, 300, 500])
+        bottom_splitter.setStretchFactor(0, 5)
+        bottom_splitter.setStretchFactor(1, 4)
+        bottom_splitter.setSizes([600, 500])
 
         layout.addWidget(bottom_splitter, 1)
         self.stack.addWidget(page)
