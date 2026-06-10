@@ -229,7 +229,6 @@ class LiveViewMixin:
             "queue_y": queue_y,
             "line_count_x": total_x,
             "line_count_y": total_y,
-            "calibrated": True,
         }
 
     def _build_pair_features(self: _LiveViewHost, dt):
@@ -242,7 +241,6 @@ class LiveViewMixin:
             "queue_y": queue_y,
             "line_count_x": queue_x,
             "line_count_y": queue_y,
-            "calibrated": True,
         }
 
     def _sim_tick(self: _LiveViewHost):
@@ -257,8 +255,6 @@ class LiveViewMixin:
             feats = self.va_features
             x_light, y_light, countdown = self.va_controller.step(
                 feats["queue_x"], feats["queue_y"],
-                0.0, 0.0,
-                0.0, 0.0,
                 dt,
             )
             self._update_sim_ui(x_light, y_light, countdown, dt)
@@ -275,8 +271,6 @@ class LiveViewMixin:
             feats = self.va_features
             x_light, y_light, countdown = self.va_controller.step(
                 feats["queue_x"], feats["queue_y"],
-                0.0, 0.0,
-                0.0, 0.0,
                 dt,
             )
             self._update_sim_ui(x_light, y_light, countdown, dt)
@@ -298,8 +292,6 @@ class LiveViewMixin:
 
         x_light, y_light, countdown = self.va_controller.step(
             feats["queue_x"], feats["queue_y"],
-            0.0, 0.0,
-            0.0, 0.0,
             dt,
         )
         self._update_sim_ui(x_light, y_light, countdown, dt)
@@ -405,8 +397,7 @@ class LiveViewMixin:
                 f"[{mode_tag}] 周期 #{state['cycle_num'] + 1}\n"
                 f"当前相位目标绿灯:{target_green:.1f}s\n"
                 f"X有效:{feats['queue_x']}  Y有效:{feats['queue_y']}\n"
-                f"当前计数: X={feats['queue_x']}  Y={feats['queue_y']}  绿灯已过:{state['phase_elapsed']:.1f}s\n"
-                f"标定:{'✓' if feats.get('calibrated') else '…'}"
+                f"当前计数: X={feats['queue_x']}  Y={feats['queue_y']}  绿灯已过:{state['phase_elapsed']:.1f}s"
             )
 
         history = self.va_controller.get_history()
