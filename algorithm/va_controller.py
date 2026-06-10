@@ -6,16 +6,17 @@ Vehicle-Actuated 交通灯控制器
 决策逻辑 (每决策步):
   1. 黄灯过渡中 → 自动推进
   2. 已过 < 最小绿灯 → KEEP (安全约束)
-  3. 计算当前相位的目标绿灯时长:
+  3. 对向红灯时长 ≥ max_red → SWITCH (强制切换，防止无限等待)
+  4. 计算当前相位的目标绿灯时长:
        target = min_green + (max_green - min_green) * current / max(current + other, 1)
      其中 current/other 只取当前方向与对向方向的车辆数量
-  4. 当前绿灯已达到 target → SWITCH
-  5. 其他 → KEEP
+  5. 当前绿灯已达到 target → SWITCH
+  6. 其他 → KEEP
 
 参数表:
   min_green: 10s  — 最短绿灯
   max_green: 30s  — 最长绿灯
-  max_red:   45s  — 最长红灯
+  max_red:   45s  — 最长红灯（对向红灯超时强制切换）
   yellow:     3s  — 黄灯过渡
 """
 
@@ -138,7 +139,11 @@ class VAController:
         if self._phase_elapsed < self.min_green:
             return False, "最小绿灯"
 
-        # 2. 目标绿灯时长（切换时已确定，此处直接使用）
+        # 2. 对向红灯超时 → 强制切换
+        if self._red_elapsed >= self.max_red:
+            return True, f"对向红灯{self._red_elapsed:.0f}s≥{self.max_red:.0f}s"
+
+        # 3. 目标绿灯时长（切换时已确定，此处直接使用）
         if self._phase_elapsed >= self._target_green:
             return True, self._target_reason
 
