@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 from gui.theme import *
 from gui.utils import load_json
-from algorithm import RealtimeEfficiencyTracker, format_realtime_snapshot_text, load_frames
+from algorithm import RealtimeEfficiencyTracker, format_realtime_snapshot_text
 
 
 class _LiveViewHost(Protocol):
@@ -36,15 +36,10 @@ class _LiveViewHost(Protocol):
     last_tick: float
     va_controller: Any
     va_features: Any
-    va_frame_index: int
-    va_sim_time: float
-    va_frames: list
-    va_fps: float
     va_pair_summary: Any
     efficiency_tracker: Any
     efficiency_snapshot: Any
     efficiency_last_switch_count: int
-    feature_extractor: Any
     DATA_DIR: Path
     canvas: Any
     timer_text: Any
@@ -92,8 +87,6 @@ class LiveViewMixin:
         self._sim_live_mode = True
         self.va_controller.reset()
         self.va_features = None
-        self.va_frame_index = 0
-        self.va_sim_time = 0.0
         with self._live_frames_lock:
             self._live_frames.clear()
         self._reset_live_dual_state()
@@ -152,19 +145,9 @@ class LiveViewMixin:
             session_dir = os.path.join(str(self.DATA_DIR), sel)
             summary = load_json(Path(session_dir) / "summary.json")
             if summary.get("session_type") == "direction_pair":
-                self.va_frames = []
-                self.va_fps = 1.0
                 self.va_pair_summary = summary
-            else:
-                self.va_frames, self.va_fps = load_frames(session_dir)
-        else:
-            self.va_frames = []
-            self.va_fps = 30.0
 
         self.va_controller.reset()
-        self.feature_extractor.reset()
-        self.va_frame_index = 0
-        self.va_sim_time = 0.0
         self.efficiency_tracker = None
         self.efficiency_snapshot = None
         self.efficiency_last_switch_count = -1
@@ -205,7 +188,6 @@ class LiveViewMixin:
         self.cycle_info.setText("点击 ▶ 开始模拟")
         self.history_table.setRowCount(0)
         self.va_controller.reset()
-        self.feature_extractor.reset()
         self.va_pair_summary = None
         self.efficiency_tracker = None
         self.efficiency_snapshot = None
@@ -260,36 +242,15 @@ class LiveViewMixin:
             self._update_sim_ui(x_light, y_light, countdown, dt)
             return
 
+        if self.va_pair_summary is None:
+            return
+
         now = time.time()
         dt = (now - self.last_tick) * self.sim_speed
         self.last_tick = now
 
-        self.va_sim_time += dt
-
-        if self.va_pair_summary is not None:
-            self.va_features = self._build_pair_features(dt)
-            feats = self.va_features
-            x_light, y_light, countdown = self.va_controller.step(
-                feats["queue_x"], feats["queue_y"],
-                dt,
-            )
-            self._update_sim_ui(x_light, y_light, countdown, dt)
-            return
-
-        n_frames = max(1, int(dt * max(self.va_fps, 1.0)))
-        for _ in range(min(n_frames, 10)):
-            frame_idx = int(self.va_sim_time * self.va_fps)
-            if self.va_frames:
-                frame_idx = frame_idx % len(self.va_frames)
-                frame_data = self.va_frames[frame_idx]
-            else:
-                frame_data = {"frame": frame_idx, "detections": []}
-            self.va_features = self.feature_extractor.process_frame(frame_data)
-
-        feats = self.va_features or {
-            "queue_x": 0, "queue_y": 0,
-        }
-
+        self.va_features = self._build_pair_features(dt)
+        feats = self.va_features
         x_light, y_light, countdown = self.va_controller.step(
             feats["queue_x"], feats["queue_y"],
             dt,
