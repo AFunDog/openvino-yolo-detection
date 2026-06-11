@@ -40,6 +40,9 @@ class _SessionViewHost(Protocol):
     def _load_sessions(self) -> None: ...
     def _render_direction_pair_session(self, summary) -> None: ...
     def _delete_session(self, row) -> None: ...
+    def _load_video(self, path) -> bool: ...
+    def _load_video_pair(self, x_path, y_path) -> bool: ...
+    def _stop_video(self) -> None: ...
 
 
 class SessionViewMixin:
@@ -160,6 +163,13 @@ class SessionViewMixin:
 
         if summary.get("session_type") == "direction_pair":
             self._render_direction_pair_session(summary)
+            dv = summary.get("direction_videos", {})
+            x_src = dv.get("X", {}).get("source", "")
+            y_src = dv.get("Y", {}).get("source", "")
+            if x_src and y_src:
+                self._load_video_pair(x_src, y_src)
+            elif x_src:
+                self._load_video(x_src)
             return
 
         classes = summary.get("class_counts", {})
@@ -238,6 +248,10 @@ class SessionViewMixin:
                 f"有效车辆: {vehicle_count}  通过:{count_in}  过滤:{count_out}\n"
                 f"后端: {backend_label}  分辨率: {vi.get('width', '?')}x{vi.get('height', '?')}"
             )
+
+        src = summary.get("source", "")
+        if src:
+            self._load_video(src)
 
     def _render_direction_pair_session(self: _SessionViewHost, summary):
         direction_videos = summary.get("direction_videos", {})

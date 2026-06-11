@@ -72,6 +72,8 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
         self.video_playing = False
         self.video_fps = 30
         self.video_last_frame_time = 0
+        self.video_cap_y = None
+        self.video_playing_y = False
         self._detect_latest = {"bgr": None, "fps": 0.0, "count": 0, "idx": 0, "video_fps": None}
         self._detect_dirty = False
         self._live_dual_lock = threading.Lock()

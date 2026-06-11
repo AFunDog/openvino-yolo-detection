@@ -62,6 +62,9 @@ class _LiveViewHost(Protocol):
     video_preview: Any
     video_preview_x: Any
     video_preview_y: Any
+    video_cap_y: Any
+    video_playing_y: bool
+    video_fps_y: float
     detect_status: Any
     btn_play: Any
     session_detail: Any
@@ -378,9 +381,48 @@ class LiveViewMixin:
             return False
         self.video_fps = max(1, self.video_cap.get(cv2.CAP_PROP_FPS) or 30)
         self.video_playing = True
+        self.video_playing_y = False
         self.video_last_frame_time = time.time()
         self._read_video_frame()
         return True
+
+    def _load_video_pair(self: _LiveViewHost, x_path, y_path):
+        self._stop_video()
+        self.video_cap = cv2.VideoCapture(x_path)
+        if not self.video_cap.isOpened():
+            self.video_cap = None
+            return False
+        self.video_cap_y = cv2.VideoCapture(y_path)
+        if not self.video_cap_y.isOpened():
+            self.video_cap_y = None
+            self.video_cap.release()
+            self.video_cap = None
+            return False
+        self.video_fps = max(1, self.video_cap.get(cv2.CAP_PROP_FPS) or 30)
+        self.video_fps_y = max(1, self.video_cap_y.get(cv2.CAP_PROP_FPS) or 30)
+        self.video_playing = True
+        self.video_playing_y = True
+        self.video_last_frame_time = time.time()
+        self._read_dual_frames()
+        return True
+
+    def _read_dual_frames(self: _LiveViewHost):
+        if self.video_cap:
+            ret, frame = self.video_cap.read()
+            if ret:
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb.shape
+                self.video_preview_x.set_frame(QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888))
+            else:
+                self.video_playing = False
+        if self.video_cap_y:
+            ret, frame = self.video_cap_y.read()
+            if ret:
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb.shape
+                self.video_preview_y.set_frame(QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888))
+            else:
+                self.video_playing_y = False
 
     def _read_video_frame(self: _LiveViewHost):
         if not self.video_cap:
@@ -446,6 +488,22 @@ class LiveViewMixin:
             self._live_dual_dirty = False
             return
 
+        # Dual file playback
+        if self.video_cap and self.video_cap_y:
+            if not self.video_playing and not self.video_playing_y:
+                return
+            now = time.time()
+            interval = 1.0 / max(self.video_fps, self.video_fps_y)
+            if now - self.video_last_frame_time < interval:
+                return
+            self.video_last_frame_time = now
+            self._read_dual_frames()
+            if not self.video_playing and not self.video_playing_y:
+                self.detect_status.setText("播放结束")
+                self.detect_status.setStyleSheet(f"color: {C_TEXT_MUTED.name()}; font-size: 12px;")
+                self.btn_play.setText("▶ 播放")
+            return
+
         if not self.video_playing or not self.video_cap:
             return
         now = time.time()
@@ -456,7 +514,15 @@ class LiveViewMixin:
         self._read_video_frame()
 
     def _on_play_video(self: _LiveViewHost):
-        if self.video_cap:
+        if self.video_cap_y:
+            self.video_playing = not self.video_playing
+            self.video_playing_y = self.video_playing
+            if self.video_playing:
+                self.video_last_frame_time = time.time()
+                self.btn_play.setText("⏸ 暂停")
+            else:
+                self.btn_play.setText("▶ 播放")
+        elif self.video_cap:
             self.video_playing = not self.video_playing
             if self.video_playing:
                 self.video_last_frame_time = time.time()
@@ -466,9 +532,13 @@ class LiveViewMixin:
 
     def _stop_video(self: _LiveViewHost):
         self.video_playing = False
+        self.video_playing_y = False
         if self.video_cap:
             self.video_cap.release()
             self.video_cap = None
+        if self.video_cap_y:
+            self.video_cap_y.release()
+            self.video_cap_y = None
         self.video_preview.clear()
         if hasattr(self, "video_preview_x"):
             self.video_preview_x.clear()
