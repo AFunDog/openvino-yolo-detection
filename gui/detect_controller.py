@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -19,10 +21,9 @@ class _DetectControllerHost(Protocol):
     detect_status: Any
     detecting: bool
     detect_progress: Any
-    _detect_latest: dict
-    _detect_dirty: bool
     PROJECT_ROOT: Path
     TEST_OUTPUT_DIR: Path
+    DATA_DIR: Path
     btn_detect: Any
     btn_play: Any
     sim_running: bool
@@ -31,15 +32,58 @@ class _DetectControllerHost(Protocol):
     data_source_combo: Any
     cycle_info: Any
     status_label: Any
+    _detect_latest: dict
+    _detect_dirty: bool
     _live_dual_lock: threading.Lock
     _live_dual_state: dict
     _new_live_direction_state: Any
     _live_dual_dirty: bool
+    _sim_live_mode: bool
 
     def _start_live_sim(self) -> None: ...
     def _reset_live_dual_state(self, video_pairs=None) -> None: ...
     def _save_direction_pair_session(self, outputs) -> str: ...
     def _load_video(self, path) -> bool: ...
+    def _backend_label(self, backend) -> str: ...
+
+
+def _active_tracks_from_tracker(tracker):
+    """Return tracker-maintained tracks that are still inside the lost-frame buffer."""
+    boxes = []
+    confidences = []
+    class_ids = []
+    track_ids = []
+    max_lost = max(1, int(getattr(tracker, "max_lost", 1)))
+
+    for track_id, track in getattr(tracker, "tracks", {}).items():
+        lost = int(track.get("lost", 0))
+        if lost > max_lost:
+            continue
+        boxes.append(track["box"])
+        class_ids.append(int(track["class_id"]))
+        track_ids.append(int(track_id))
+        confidences.append(max(0.05, 1.0 - lost / max_lost))
+
+    return boxes, confidences, class_ids, track_ids
+
+
+def _snapshot_filter_result(direction_filter, width, height):
+    """Build a filter result without advancing trajectory state on skipped frames."""
+    info = direction_filter.get_filter_info(width, height)
+    return {
+        "events": [],
+        "track_count_total": direction_filter.total_count,
+        "track_count_keep": direction_filter.current_keep_count,
+        "track_count_slow": direction_filter.current_slow_count,
+        "track_count_filtered": direction_filter.current_filtered_count,
+        "filtered_class_counts": dict(direction_filter.filtered_class_counts),
+        "slow_class_counts": dict(direction_filter.slow_class_counts),
+        "kept_class_counts": dict(direction_filter.crossed_class_counts),
+        "axis": info.get("axis"),
+        "anchor": info.get("anchor"),
+        "angle_threshold_deg": info.get("angle_threshold_deg"),
+        "axis_ready": info.get("axis_ready", False),
+    }
 
 
 class DetectControllerMixin:
@@ -155,11 +199,8 @@ class DetectControllerMixin:
                             "frame_count": 0,
                             "fps_list": [],
                             "total_detections": 0,
-                            "tracker": yolo.SimpleTracker(),
+                            "tracker": yolo.SimpleTracker(iou_threshold=0.2, max_lost=45),
                             "direction_filter": yolo.TrajectoryDirectionFilter(),
-                            "last_boxes": [],
-                            "last_confidences": [],
-                            "last_class_ids": [],
                             "done": False,
                             "next_due": 0.0,
                             "backend": backend,
@@ -170,12 +211,18 @@ class DetectControllerMixin:
                             state["video_fps"] = max(1.0, fps)
                             state["backend"] = backend
 
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                    x_name = Path(video_pairs[0][1]).stem[:16]
+                    y_name = Path(video_pairs[1][1]).stem[:16]
+                    snapshot_dir = self.DATA_DIR / f"detection_pair_{timestamp}_{x_name}_{y_name}"
+                    snapshot_dir.mkdir(parents=True, exist_ok=True)
+                    last_snapshot_time = 0.0
+                    snapshot_interval = 1.0
+
                     start_ts = time.time()
                     while True:
-                        # 暂停时跳过所有帧处理，但保持循环以响应恢复
                         while self.sim_paused:
                             time.sleep(0.05)
-                            # 如果暂停期间所有流都结束了则退出
                             if all(s["done"] for s in streams.values()):
                                 break
                         if all(s["done"] for s in streams.values()):
@@ -205,37 +252,47 @@ class DetectControllerMixin:
                             is_real_detection = (frame_no % yolo.SKIP_FRAMES == 0)
                             if is_real_detection:
                                 boxes, confidences, class_ids = yolo.process_frame(frame, detector)
-                                stream["last_boxes"] = boxes
-                                stream["last_confidences"] = confidences
-                                stream["last_class_ids"] = class_ids
+                                track_ids = stream["tracker"].update(boxes, class_ids)
+                                filter_result = stream["direction_filter"].update(
+                                    boxes, class_ids, track_ids, stream["width"], stream["height"]
+                                )
                             else:
-                                boxes = stream["last_boxes"]
-                                confidences = stream["last_confidences"]
-                                class_ids = stream["last_class_ids"]
+                                boxes, confidences, class_ids = [], [], []
+                                stream["tracker"].update([], [])
+                                filter_result = _snapshot_filter_result(
+                                    stream["direction_filter"], stream["width"], stream["height"]
+                                )
 
-                            track_ids = stream["tracker"].update(boxes, class_ids)
-                            filter_result = stream["direction_filter"].update(
-                                boxes, class_ids, track_ids, stream["width"], stream["height"]
+                            active_boxes, active_confidences, active_class_ids, active_track_ids = _active_tracks_from_tracker(
+                                stream["tracker"]
                             )
-                            kept_indices = filter_result["kept_indices"]
-                            kept_boxes = [boxes[i] for i in kept_indices]
-                            kept_confidences = [confidences[i] for i in kept_indices]
-                            kept_class_ids = [class_ids[i] for i in kept_indices]
-                            kept_track_ids = [track_ids[i] for i in kept_indices]
-                            kept_statuses = [
-                                stream["direction_filter"].track_states.get(track_id, {}).get("status", "pending")
-                                for track_id in kept_track_ids
-                            ]
+                            display_boxes = []
+                            display_confidences = []
+                            display_class_ids = []
+                            display_track_ids = []
+                            display_statuses = []
+                            for box, conf, cls_id, track_id in zip(
+                                active_boxes, active_confidences, active_class_ids, active_track_ids
+                            ):
+                                status = stream["direction_filter"].track_states.get(track_id, {}).get("status", "pending")
+                                if status == "reject":
+                                    continue
+                                display_boxes.append(box)
+                                display_confidences.append(conf)
+                                display_class_ids.append(cls_id)
+                                display_track_ids.append(track_id)
+                                display_statuses.append(status)
+
                             filter_info = stream["direction_filter"].get_filter_info(stream["width"], stream["height"])
                             frame_class_counts = {}
-                            for cls_id in kept_class_ids:
+                            for cls_id in display_class_ids:
                                 class_name = yolo.CLASS_NAMES[cls_id] if 0 <= cls_id < len(yolo.CLASS_NAMES) else f"class_{cls_id}"
                                 frame_class_counts[class_name] = frame_class_counts.get(class_name, 0) + 1
 
-                            if kept_boxes:
+                            if display_boxes:
                                 result_frame = yolo.draw_detections(
-                                    frame.copy(), kept_boxes, kept_confidences, kept_class_ids, yolo.CLASS_NAMES,
-                                    track_ids=kept_track_ids, statuses=kept_statuses
+                                    frame.copy(), display_boxes, display_confidences, display_class_ids, yolo.CLASS_NAMES,
+                                    track_ids=display_track_ids, statuses=display_statuses
                                 )
                             else:
                                 result_frame = frame.copy()
@@ -257,7 +314,7 @@ class DetectControllerMixin:
                                 result_frame,
                                 [
                                     f"{direction} FPS: {avg_fps:.1f}",
-                                    f"Valid: {len(kept_boxes)}",
+                                    f"Valid: {len(display_boxes)}",
                                     f"Raw: {len(boxes)}",
                                 ],
                                 origin=(10, 10),
@@ -267,13 +324,13 @@ class DetectControllerMixin:
                                 stream["writer"].write(result_frame)
 
                             stream["frame_count"] += 1
-                            stream["total_detections"] += len(kept_boxes)
+                            stream["total_detections"] += len(display_boxes)
                             on_detect_frame(
                                 direction,
                                 result_frame,
                                 stream["frame_count"],
                                 avg_fps,
-                                len(kept_boxes),
+                                len(display_boxes),
                                 stream["fps"],
                                 {
                                     "track_count_total": filter_result["track_count_total"],
@@ -294,6 +351,63 @@ class DetectControllerMixin:
 
                         if not any_pending:
                             break
+
+                        now = time.time()
+                        if now - last_snapshot_time >= snapshot_interval:
+                            last_snapshot_time = now
+                            try:
+                                by_direction = {}
+                                for d, st in streams.items():
+                                    df = st["direction_filter"]
+                                    by_direction[d] = {
+                                        "source": st["source_path"],
+                                        "output_path": st["output_path"],
+                                        "track_count_total": df.total_count,
+                                        "track_count_keep": df.count_in,
+                                        "track_count_slow": df.current_slow_count,
+                                        "track_count_filtered": df.count_out,
+                                        "line_count_total": df.total_count,
+                                        "line_count_in": df.count_in,
+                                        "line_count_slow": df.current_slow_count,
+                                        "line_count_out": df.count_out,
+                                        "crossed_class_counts": dict(df.crossed_class_counts),
+                                        "slow_class_counts": dict(df.slow_class_counts),
+                                        "total_frames": st["frame_count"],
+                                        "total_detections": st["total_detections"],
+                                        "avg_fps": round(
+                                            sum(st["fps_list"]) / len(st["fps_list"]) if st["fps_list"] else 0.0, 1
+                                        ),
+                                        "video_info": {
+                                            "width": st["width"],
+                                            "height": st["height"],
+                                            "fps": st["fps"],
+                                        },
+                                        "backend": st["backend"],
+                                    }
+                                lx = by_direction.get("X", {}).get("track_count_total", 0)
+                                ly = by_direction.get("Y", {}).get("track_count_total", 0)
+                                snapshot = {
+                                    "session_type": "direction_pair",
+                                    "source": "same_intersection_xy_pair",
+                                    "description": "同一路口两段垂直方向监控视频的轨迹方向过滤统计（增量快照）",
+                                    "count_method": "trajectory_direction_filter_by_direction",
+                                    "track_count_x": lx,
+                                    "track_count_y": ly,
+                                    "line_count_x": lx,
+                                    "line_count_y": ly,
+                                    "line_count_total": lx + ly,
+                                    "direction_videos": by_direction,
+                                    "preview_output": by_direction.get("Y", {}).get("output_path")
+                                                      or by_direction.get("X", {}).get("output_path"),
+                                }
+                                snapshot_path = snapshot_dir / "summary.json"
+                                tmp_path = snapshot_dir / "summary.json.tmp"
+                                with open(tmp_path, "w", encoding="utf-8") as f:
+                                    json.dump(snapshot, f, ensure_ascii=False, indent=2)
+                                os.replace(tmp_path, snapshot_path)
+                            except Exception:
+                                pass
+
                         time.sleep(0.001)
 
                     for direction, stream in streams.items():
@@ -329,12 +443,58 @@ class DetectControllerMixin:
                             "direction": direction,
                             "source_path": stream["source_path"],
                             "output_path": stream["output_path"],
-                            "session_dir": None,
+                            "session_dir": str(snapshot_dir),
                             "summary": summary,
                         })
+
+                    by_direction_final = {}
+                    for item in outputs:
+                        d = str(item.get("direction", "")).upper()
+                        s = item.get("summary", {}) or {}
+                        by_direction_final[d] = {
+                            "source": item.get("source_path"),
+                            "session_dir": item.get("session_dir"),
+                            "output_path": item.get("output_path"),
+                            "track_count_total": s.get("track_count_total", s.get("line_count_total", 0)),
+                            "track_count_keep": s.get("track_count_keep", s.get("line_count_in", 0)),
+                            "track_count_slow": s.get("track_count_slow", s.get("line_count_slow", 0)),
+                            "track_count_filtered": s.get("track_count_filtered", s.get("line_count_out", 0)),
+                            "line_count_total": s.get("line_count_total", 0),
+                            "line_count_in": s.get("line_count_in", 0),
+                            "line_count_slow": s.get("line_count_slow", 0),
+                            "line_count_out": s.get("line_count_out", 0),
+                            "crossed_class_counts": s.get("crossed_class_counts", {}),
+                            "slow_class_counts": s.get("slow_class_counts", {}),
+                            "total_frames": s.get("total_frames", 0),
+                            "total_detections": s.get("total_detections", 0),
+                            "avg_fps": s.get("avg_fps", 0),
+                            "video_info": s.get("video_info", {}),
+                            "backend": s.get("backend", ""),
+                        }
+                    lx_final = int(by_direction_final.get("X", {}).get("track_count_total", 0))
+                    ly_final = int(by_direction_final.get("Y", {}).get("track_count_total", 0))
+                    final_summary = {
+                        "session_type": "direction_pair",
+                        "source": "same_intersection_xy_pair",
+                        "description": "同一路口两段垂直方向监控视频的轨迹方向过滤统计",
+                        "count_method": "trajectory_direction_filter_by_direction",
+                        "track_count_x": lx_final,
+                        "track_count_y": ly_final,
+                        "line_count_x": lx_final,
+                        "line_count_y": ly_final,
+                        "line_count_total": lx_final + ly_final,
+                        "direction_videos": by_direction_final,
+                        "preview_output": by_direction_final.get("Y", {}).get("output_path")
+                                          or by_direction_final.get("X", {}).get("output_path"),
+                    }
+                    snapshot_path = snapshot_dir / "summary.json"
+                    tmp_path = snapshot_dir / "summary.json.tmp"
+                    with open(tmp_path, "w", encoding="utf-8") as f:
+                        json.dump(final_summary, f, ensure_ascii=False, indent=2)
+                    os.replace(tmp_path, snapshot_path)
                 finally:
                     os.chdir(cwd)
-                pair_session = self._save_direction_pair_session(outputs)
+                pair_session = str(snapshot_dir)
                 self.detect_progress = {"status": "done", "outputs": outputs, "pair_session": pair_session}
             except Exception as e:
                 import traceback
@@ -402,6 +562,3 @@ class DetectControllerMixin:
                 self._sim_live_mode = False
             if self.cycle_info.toPlainText():
                 self.cycle_info.append("\n检测结束，实时联动停止")
-            self._load_sessions()
-            if pair_session:
-                self.status_label.setText(f"已生成双方向会话: {Path(pair_session).name}")
