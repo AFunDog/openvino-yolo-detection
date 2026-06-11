@@ -160,41 +160,110 @@ def _iou(box_a, box_b):
 class SimpleTracker:
     """基于 IoU 的简易目标追踪器，用于跨帧去重统计"""
 
-    def __init__(self, iou_threshold=0.3, max_lost=5):
+    def __init__(self, iou_threshold=0.3, max_lost=5, distance_threshold=0.65, max_center_distance=120.0):
         self.next_id = 1
-        self.tracks = {}        # track_id -> {"box": [...], "class_id": int, "lost": int}
+        self.tracks = {}        # track_id -> track state
         self.iou_threshold = iou_threshold
         self.max_lost = max_lost
+        self.distance_threshold = distance_threshold
+        self.max_center_distance = max_center_distance
         self.unique_class_counts = {}  # 去重后的类别计数
+
+    @staticmethod
+    def _center(box):
+        return np.array([(box[0] + box[2]) * 0.5, (box[1] + box[3]) * 0.5], dtype=np.float32)
+
+    @staticmethod
+    def _size(box):
+        return np.array([max(box[2] - box[0], 1.0), max(box[3] - box[1], 1.0)], dtype=np.float32)
+
+    def _build_track(self, box, class_id, lost=0, velocity=None):
+        center = self._center(box)
+        size = self._size(box)
+        return {
+            "box": box,
+            "class_id": int(class_id),
+            "lost": int(lost),
+            "center": center,
+            "size": size,
+            "velocity": velocity.copy() if isinstance(velocity, np.ndarray) else np.zeros(2, dtype=np.float32),
+        }
+
+    def _predict_box(self, trk):
+        center = trk.get("center", self._center(trk["box"]))
+        velocity = trk.get("velocity", np.zeros(2, dtype=np.float32))
+        size = trk.get("size", self._size(trk["box"]))
+        predicted_center = center + velocity * float(min(int(trk.get("lost", 0)) + 1, 2))
+        half = size * 0.5
+        return [
+            float(predicted_center[0] - half[0]),
+            float(predicted_center[1] - half[1]),
+            float(predicted_center[0] + half[0]),
+            float(predicted_center[1] + half[1]),
+        ]
+
+    def _match_score(self, trk, box):
+        predicted_box = self._predict_box(trk)
+        iou_val = _iou(box, predicted_box)
+        center = self._center(box)
+        size = self._size(box)
+        prev_center = trk.get("center", self._center(trk["box"]))
+        prev_size = trk.get("size", self._size(trk["box"]))
+        center_distance = float(np.linalg.norm(center - prev_center))
+        diag = float(max(np.linalg.norm(prev_size), np.linalg.norm(size), 1.0))
+        normalized_distance = center_distance / diag
+        size_ratio = float(min(size[0] / prev_size[0], prev_size[0] / size[0], size[1] / prev_size[1], prev_size[1] / size[1]))
+
+        if iou_val >= self.iou_threshold:
+            return (2, float(iou_val), -normalized_distance, size_ratio)
+
+        if (
+            center_distance <= self.max_center_distance
+            and normalized_distance <= self.distance_threshold
+            and size_ratio >= 0.45
+        ):
+            return (1, size_ratio, -normalized_distance, iou_val)
+
+        return None
 
     def update(self, boxes, class_ids):
         """更新追踪器，返回每帧每个检测的 track_id"""
-        matched_old = set()  # 已匹配的旧轨迹 id
-        matched_new = set()  # 已匹配的新检测索引
+        matched_old = set()
+        matched_new = set()
+        matches = []
 
-        # 构建匹配关系：旧轨迹 ↔ 新检测
-        matches = []  # (track_id, new_idx)
+        candidates = []
         for tid, trk in self.tracks.items():
-            best_iou = 0
-            best_idx = -1
             for i, (box, cls) in enumerate(zip(boxes, class_ids)):
-                if i in matched_new or cls != trk["class_id"]:
+                if cls != trk["class_id"]:
                     continue
-                iou_val = _iou(box, trk["box"])
-                if iou_val > best_iou:
-                    best_iou = iou_val
-                    best_idx = i
-            if best_idx >= 0 and best_iou >= self.iou_threshold:
-                matches.append((tid, best_idx))
-                matched_old.add(tid)
-                matched_new.add(best_idx)
+                score = self._match_score(trk, box)
+                if score is not None:
+                    candidates.append((score, tid, i))
+
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        for _, tid, new_idx in candidates:
+            if tid in matched_old or new_idx in matched_new:
+                continue
+            matches.append((tid, new_idx))
+            matched_old.add(tid)
+            matched_new.add(new_idx)
 
         # 构建新轨迹字典
         new_tracks = {}
 
         # 更新已匹配的轨迹
         for tid, new_idx in matches:
-            new_tracks[tid] = {"box": boxes[new_idx], "class_id": class_ids[new_idx], "lost": 0}
+            old_track = self.tracks[tid]
+            new_center = self._center(boxes[new_idx])
+            prev_center = old_track.get("center", self._center(old_track["box"]))
+            velocity = new_center - prev_center
+            new_tracks[tid] = self._build_track(
+                boxes[new_idx],
+                class_ids[new_idx],
+                lost=0,
+                velocity=velocity,
+            )
 
         # 保留短暂丢失的轨迹
         for tid, trk in self.tracks.items():
@@ -212,7 +281,7 @@ class SimpleTracker:
             if i not in matched_new:
                 tid = self.next_id
                 self.next_id += 1
-                new_tracks[tid] = {"box": box, "class_id": cls, "lost": 0}
+                new_tracks[tid] = self._build_track(box, cls, lost=0)
                 track_ids[i] = tid
                 # 新目标计入去重统计
                 class_name = CLASS_NAMES[cls] if 0 <= cls < len(CLASS_NAMES) else f"class_{cls}"

@@ -251,7 +251,7 @@ class DetectControllerMixin:
                             fno = s["frame_count"]
                             t0 = time.time()
                             boxes, confs, clss = [], [], []
-                            db, dc, dcls, dtid, dst = [], [], [], [], []
+                            draw_boxes, draw_confs, draw_clss, draw_tids, draw_statuses = [], [], [], [], []
                             if fno % skip == 0:
                                 boxes, confs, clss = yolo.process_frame(frame, detector)
                                 tids = s["tracker"].update(boxes, clss)
@@ -259,8 +259,8 @@ class DetectControllerMixin:
                                     fr = s["direction_filter"].update(
                                         boxes, clss, tids, s["width"], s["height"]
                                     )
-                                    for i in fr.get("kept_indices", []):
-                                        if i >= len(boxes) or i >= len(tids):
+                                    for i, box in enumerate(boxes):
+                                        if i >= len(tids):
                                             continue
                                         tid = int(tids[i])
                                         status = (
@@ -268,21 +268,21 @@ class DetectControllerMixin:
                                             .track_states.get(tid, {})
                                             .get("status", "pending")
                                         )
-                                        if status == "reject":
-                                            continue
-                                        db.append(boxes[i])
-                                        dc.append(confs[i] if i < len(confs) else 0.0)
-                                        dcls.append(clss[i])
-                                        dtid.append(tid)
-                                        dst.append(status)
-                                    if db:
-                                        db, dc, dcls, dtid, dst = _dedupe(db, dc, dcls, dtid, dst)
+                                        draw_boxes.append(box)
+                                        draw_confs.append(confs[i] if i < len(confs) else 0.0)
+                                        draw_clss.append(clss[i])
+                                        draw_tids.append(tid)
+                                        draw_statuses.append(status)
+                                    if draw_boxes:
+                                        draw_boxes, draw_confs, draw_clss, draw_tids, draw_statuses = _dedupe(
+                                            draw_boxes, draw_confs, draw_clss, draw_tids, draw_statuses
+                                        )
                                         s["cache"] = {
-                                            "boxes": db[:],
-                                            "confs": dc[:],
-                                            "clss": dcls[:],
-                                            "tids": dtid[:],
-                                            "stats": dst[:],
+                                            "boxes": draw_boxes[:],
+                                            "confs": draw_confs[:],
+                                            "clss": draw_clss[:],
+                                            "tids": draw_tids[:],
+                                            "stats": draw_statuses[:],
                                         }
                                         s["cache_age"] = 0
                                     else:
@@ -294,13 +294,18 @@ class DetectControllerMixin:
                             else:
                                 fr = _snapshot(s["direction_filter"], s["width"], s["height"])
                                 s["cache_age"] += 1
-                            if not db and s.get("cache") and s["cache_age"] <= s["hold"]:
-                                db, dc, dcls, dtid, dst = _cache_tuple(s["cache"])
+                            if not draw_boxes and s.get("cache") and s["cache_age"] <= s["hold"]:
+                                draw_boxes, draw_confs, draw_clss, draw_tids, draw_statuses = _cache_tuple(s["cache"])
                             filter_info = s["direction_filter"].get_filter_info(
                                 s["width"], s["height"]
                             )
+                            live_valid_count = sum(
+                                1 for status in draw_statuses if str(status).lower() != "reject"
+                            )
                             frame_classes = {}
-                            for c in dcls:
+                            for c, status in zip(draw_clss, draw_statuses):
+                                if str(status).lower() == "reject":
+                                    continue
                                 name = (
                                     yolo.CLASS_NAMES[c]
                                     if 0 <= c < len(yolo.CLASS_NAMES)
@@ -310,14 +315,14 @@ class DetectControllerMixin:
                             result = (
                                 yolo.draw_detections(
                                     frame.copy(),
-                                    db,
-                                    dc,
-                                    dcls,
+                                    draw_boxes,
+                                    draw_confs,
+                                    draw_clss,
                                     yolo.CLASS_NAMES,
-                                    track_ids=dtid,
-                                    statuses=dst,
+                                    track_ids=draw_tids,
+                                    statuses=draw_statuses,
                                 )
-                                if db
+                                if draw_boxes
                                 else frame.copy()
                             )
                             result = yolo.draw_counting_line(
@@ -336,7 +341,7 @@ class DetectControllerMixin:
                                 result,
                                 [
                                     f"{direction} FPS: {avg:.1f}",
-                                    f"Valid: {len(db)}",
+                                    f"Valid: {live_valid_count}",
                                     f"Raw: {len(boxes)}",
                                 ],
                                 origin=(10, 10),
@@ -344,13 +349,13 @@ class DetectControllerMixin:
                             if s["writer"]:
                                 s["writer"].write(result)
                             s["frame_count"] += 1
-                            s["total_detections"] += len(db)
+                            s["total_detections"] += live_valid_count
                             push(
                                 direction,
                                 result,
                                 s["frame_count"],
                                 avg,
-                                len(db),
+                                live_valid_count,
                                 s["fps"],
                                 {
                                     "track_count_total": fr["track_count_total"],
