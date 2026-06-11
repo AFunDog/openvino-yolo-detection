@@ -193,3 +193,81 @@ detect_video() 循环                 _sim_tick() 每 33ms
 - PyQt6（桌面 GUI + Windows 明暗主题）
 - NumPy
 - RPi.GPIO（树莓派控制，可选）
+
+## 参考资料
+
+### 信号交叉口饱和流率
+
+饱和流率指绿灯期间单车道每秒能通过的最大车辆数，是通行效率评估的核心参数。
+
+| 来源 | 单车道饱和流率 |
+|------|--------------|
+| FHWA 信号配时手册（《Traffic Signal Timing Manual》） | 1900 veh/h/车道 ≈ **0.53 veh/s/车道** |
+| FHWA  Highway Performance Monitoring System (HPMS) | 1900 pcphpl（基本饱和流率） |
+| 中国《城市道路工程设计规范》CJJ 37-2012 | 1800 veh/h/车道 ≈ **0.5 veh/s/车道** |
+
+**工程常用近似值：0.5 辆/秒/车道**（即约 2 秒通过 1 辆小客车）。
+
+总放行能力由车道数决定：
+
+```
+Q = n × s × g
+```
+
+其中 `n` = 放行车道数，`s` ≈ 0.5 veh/s/车道，`g` = 有效绿灯时间（秒）。
+
+| 场景 | 建议取值 |
+|------|---------|
+| 保守城市路口（大车多、干扰大） | 0.4 veh/s/车道 |
+| 普通直行车道 | 0.5 veh/s/车道 |
+| 条件较好、车辆启动快 | 0.55 veh/s/车道 |
+| 有大车、左转、行人干扰、车道窄 | 0.25～0.45 veh/s/车道 |
+
+**参考文档：**
+- FHWA *Traffic Signal Timing Manual* – Chapter 3: [ops.fhwa.dot.gov](https://ops.fhwa.dot.gov/publications/fhwahop08024/chapter3.htm)
+- FHWA *HPMS Field Manual* – Appendix N: [fhwa.dot.gov](https://www.fhwa.dot.gov/ohim/hpmsmanl/appn5.cfm)
+
+### UA-DETRAC 车辆检测与跟踪数据集
+
+本项目的训练数据与检测模型基于 **UA-DETRAC** 数据集，全称 **University at Albany DEtection and TRACking**。
+
+#### 数据集来源与机构
+
+由 **美国纽约州立大学奥尔巴尼分校（University at Albany, SUNY）** 牵头，多机构合作完成，包括 JD Finance America、UC San Diego、中国科学院自动化研究所、中国科学院大学、韩国汉阳大学、UC Merced。
+
+- arXiv 论文：*UA-DETRAC: A New Benchmark and Protocol for Multi-Object Detection and Tracking*
+- 论文作者：Longyin Wen, Dawei Du, Zhaowei Cai, Zhen Lei, Ming-Ching Chang, Honggang Qi, Jongwoo Lim, Ming-Hsuan Yang, Siwei Lyu
+- 官方页面：[albany.edu](https://www.albany.edu/cnse/research/computer-vision-machine-learning-lab)
+
+#### 数据规格
+
+| 属性 | 数值 |
+|------|------|
+| 视频序列 | 100 个 |
+| 总时长 | > 10 小时 |
+| 总帧数 | > 14 万帧 |
+| 标注车辆 | 8,250 辆 |
+| 标注边界框 | ≈ 121 万个 |
+| 采集设备 | Canon EOS 550D |
+| 帧率 | 25 fps |
+| 分辨率 | 960 × 540 |
+| 采集地点 | 中国北京、天津（24 个不同地点） |
+| 场景类型 | 城市快速路、交通路口、T 型路口 |
+
+#### 标注内容
+
+- **车辆类型（4 类）**：car、bus、van、others
+- **光照条件**：cloudy、night、sunny、rainy
+- **遮挡程度**：无遮挡、部分遮挡、严重遮挡
+
+#### 与交通灯控制项目的关系
+
+UA-DETRAC **适合**作为本项目的上游视觉数据源：用于训练车辆检测模型（YOLOv26）、评估跟踪性能、统计车流密度与排队长度。
+
+但需注意的局限：
+- 不提供红绿灯相位、车道线拓扑、放行时长等信号控制标签
+- 数据采集自北京、天津，交通行为与道路结构可能存在地域差异
+- 论文定位是车辆检测与多目标跟踪（MOT）基准，**不是**交通信号控制数据集
+
+**参考论文：**
+- Wen et al., *UA-DETRAC: A New Benchmark and Protocol for Multi-Object Detection and Tracking*, arXiv 1511.04136: [arxiv.org](https://arxiv.org/abs/1511.04136)
