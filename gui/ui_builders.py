@@ -302,9 +302,12 @@ class UIBuilderMixin:
         traffic_top.setSpacing(8)
 
         self.canvas = IntersectionCanvas()
-        traffic_top.addWidget(self.canvas, 3)
+        traffic_top.addWidget(self.canvas, 5)
 
-        traffic_right = QVBoxLayout()
+        traffic_right_panel = QWidget()
+        traffic_right_panel.setMaximumWidth(320)
+        traffic_right = QVBoxLayout(traffic_right_panel)
+        traffic_right.setContentsMargins(0, 0, 0, 0)
         traffic_right.setSpacing(6)
 
         metrics_lbl = QLabel("控制指标")
@@ -437,7 +440,7 @@ class UIBuilderMixin:
         """)
         traffic_right.addWidget(self.efficiency_view, 1)
 
-        traffic_top.addLayout(traffic_right, 1)
+        traffic_top.addWidget(traffic_right_panel, 2)
         traffic_main_layout.addLayout(traffic_top, 3)
 
         hist_lbl = QLabel("切换记录")
@@ -474,16 +477,28 @@ class UIBuilderMixin:
         stats_layout.addWidget(self.stat_x_count)
         stats_layout.addWidget(self.stat_y_count)
 
+        x_row_splitter = QSplitter(Qt.Orientation.Horizontal)
+        x_row_splitter.addWidget(card_video_x)
+        x_row_splitter.addWidget(card_x_info)
+        x_row_splitter.setStretchFactor(0, 3)
+        x_row_splitter.setStretchFactor(1, 2)
+        x_row_splitter.setSizes([480, 320])
+
+        y_row_splitter = QSplitter(Qt.Orientation.Horizontal)
+        y_row_splitter.addWidget(card_video_y)
+        y_row_splitter.addWidget(card_y_info)
+        y_row_splitter.setStretchFactor(0, 3)
+        y_row_splitter.setStretchFactor(1, 2)
+        y_row_splitter.setSizes([480, 320])
+
         left_container = QWidget()
         left_container_layout = QVBoxLayout(left_container)
         left_container_layout.setContentsMargins(0, 0, 0, 0)
         left_container_layout.setSpacing(8)
         left_container_layout.addWidget(stats_lbl)
         left_container_layout.addWidget(card_stats)
-        left_container_layout.addWidget(card_video_x, 2)
-        left_container_layout.addWidget(card_x_info)
-        left_container_layout.addWidget(card_video_y, 2)
-        left_container_layout.addWidget(card_y_info)
+        left_container_layout.addWidget(x_row_splitter, 1)
+        left_container_layout.addWidget(y_row_splitter, 1)
 
         traffic_container = QWidget()
         traffic_container_layout = QVBoxLayout(traffic_container)
