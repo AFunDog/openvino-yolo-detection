@@ -33,6 +33,8 @@ class _SessionViewHost(Protocol):
     y_info_view: Any
     x_class_table: Any
     y_class_table: Any
+    video_path_x_input: Any
+    video_path_y_input: Any
 
     def _fill_class_table(self, table, counts): ...
 
@@ -40,8 +42,6 @@ class _SessionViewHost(Protocol):
     def _load_sessions(self) -> None: ...
     def _render_direction_pair_session(self, summary) -> None: ...
     def _delete_session(self, row) -> None: ...
-    def _load_video(self, path) -> bool: ...
-    def _load_video_pair(self, x_path, y_path) -> bool: ...
     def _stop_video(self) -> None: ...
 
 
@@ -161,15 +161,16 @@ class SessionViewMixin:
         self.selected_session = s
         summary = s.get("summary", {})
 
+        self._stop_video()
         if summary.get("session_type") == "direction_pair":
             self._render_direction_pair_session(summary)
             dv = summary.get("direction_videos", {})
             x_src = dv.get("X", {}).get("source", "")
             y_src = dv.get("Y", {}).get("source", "")
-            if x_src and y_src:
-                self._load_video_pair(x_src, y_src)
-            elif x_src:
-                self._load_video(x_src)
+            if x_src:
+                self.video_path_x_input.setText(x_src)
+            if y_src:
+                self.video_path_y_input.setText(y_src)
             return
 
         classes = summary.get("class_counts", {})
@@ -250,8 +251,8 @@ class SessionViewMixin:
             )
 
         src = summary.get("source", "")
-        if src:
-            self._load_video(src)
+        self.video_path_x_input.setText(src)
+        self.video_path_y_input.clear()
 
     def _render_direction_pair_session(self: _SessionViewHost, summary):
         direction_videos = summary.get("direction_videos", {})
