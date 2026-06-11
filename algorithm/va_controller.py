@@ -1,22 +1,18 @@
 """
 Vehicle-Actuated 交通灯控制器
 
-简化比较法 —— 仅根据 X/Y 两个方向的车辆数量比较来决定绿灯时长。
-
-决策逻辑 (每决策步):
-  1. 黄灯过渡中 → 自动推进
-  2. 已过 < 最小绿灯 → KEEP (安全约束)
-  3. 对向红灯时长 ≥ max_red → SWITCH (强制切换，防止无限等待)
-  4. 计算当前相位的目标绿灯时长:
-       target = min_green + (max_green - min_green) * current / max(current + other, 1)
-     其中 current/other 只取当前方向与对向方向的车辆数量
-  5. 当前绿灯已达到 target → SWITCH
+基于比较法的自适应控制，融合提前切换规则：
+  1. 最小绿灯未过 → KEEP
+  2. 对向红灯超时 → SWITCH
+  3. 本向清空 + 对向有车 → SWITCH (提前让路)
+  4. 对向排队远超本向 → SWITCH (压力失衡)
+  5. 达到目标绿灯 → SWITCH (比例上限兜底)
   6. 其他 → KEEP
 
-参数表:
+参数:
   min_green: 10s  — 最短绿灯
   max_green: 30s  — 最长绿灯
-  max_red:   45s  — 最长红灯（对向红灯超时强制切换）
+  max_red:   45s  — 最长红灯
   yellow:     3s  — 黄灯过渡
 """
 
@@ -35,7 +31,7 @@ class PhaseRecord:
 
 
 class VAController:
-    """基于车辆数量比较的交通灯控制器"""
+    """Vehicle-Actuated 交通灯控制器"""
 
     def __init__(
         self,
@@ -49,23 +45,21 @@ class VAController:
         self.max_red = max_red
         self.yellow_duration = yellow_duration
 
-        self._phase: int = 0            # 0=X, 1=Y
+        self._phase: int = 0
         self._phase_elapsed: float = 0.0
         self._red_elapsed: float = 0.0
         self._in_yellow: bool = False
         self._yellow_elapsed: float = 0.0
         self._sim_time: float = 0.0
         self._cycle_num: int = 0
-        self._target_green: float = min_green  # 当前相位的目标绿灯时长（切换时确定）
-        self._target_reason: str = "初始默认"  # 目标绿灯的来源原因
+        self._target_green: float = min_green
+        self._target_reason: str = "初始默认"
 
-        # 上一帧的特征 (用于显示)
         self.last_queue_x: int = 0
         self.last_queue_y: int = 0
         self.last_target_green: float = min_green
         self.last_compare_ratio: float = 0.5
 
-        # 历史
         self.phase_history: List[PhaseRecord] = []
 
     # ── 主接口 ────────────────────────────────────────────
@@ -76,36 +70,25 @@ class VAController:
         queue_y: int,
         dt: float,
     ) -> Tuple[str, str, Optional[float]]:
-        """
-        推进仿真一步。
-
-        Args:
-            queue_x, queue_y: X/Y 路当前排队车辆数
-            dt:               时间步长
-
-        Returns:
-            (x_light, y_light, countdown)
-        """
         self._sim_time += dt
-
         self.last_queue_x = queue_x
         self.last_queue_y = queue_y
 
-        # ── 黄灯过渡 ──
         if self._in_yellow:
             self._yellow_elapsed += dt
             remaining = self.yellow_duration - self._yellow_elapsed
             flash = int(self._yellow_elapsed * 3) % 2 == 0
             x_state = "yellow" if flash else "off"
             y_state = "yellow" if flash else "off"
-
             if self._yellow_elapsed >= self.yellow_duration:
                 self._end_yellow()
             return x_state, y_state, max(0, remaining)
 
-        # ── 正常决策 ──
         self._phase_elapsed += dt
-        self._red_elapsed += dt  # 对向红灯计时（X绿时Y红灯 / Y绿时X红灯）
+        if self._phase == 0:
+            self._red_elapsed = 0.0   # X 绿灯，Y 红灯计时从零开始
+        else:
+            self._red_elapsed += dt   # Y 绿灯，X 红灯累计
 
         should_switch, reason = self._decide()
 
@@ -122,7 +105,6 @@ class VAController:
             self._yellow_elapsed = 0.0
             return "yellow", "yellow", self.yellow_duration
 
-        # 继续
         remaining = self._remaining_green()
         if self._phase == 0:
             return "green", "red", remaining
@@ -132,15 +114,21 @@ class VAController:
     # ── 决策 ──────────────────────────────────────────────
 
     def _decide(self) -> Tuple[bool, str]:
-        # 1. 最小绿灯
+        q_cur   = self.last_queue_x if self._phase == 0 else self.last_queue_y
+        q_other = self.last_queue_y if self._phase == 0 else self.last_queue_x
+
         if self._phase_elapsed < self.min_green:
             return False, "最小绿灯"
 
-        # 2. 对向红灯超时 → 强制切换
         if self._red_elapsed >= self.max_red:
             return True, f"对向红灯{self._red_elapsed:.0f}s≥{self.max_red:.0f}s"
 
-        # 3. 目标绿灯时长（切换时已确定，此处直接使用）
+        if q_cur == 0 and q_other > 0:
+            return True, "本向清空，提前切换"
+
+        if q_other > q_cur * 1.5 and q_other >= 3:
+            return True, f"对向压力{q_other}>>本向{q_cur}"
+
         if self._phase_elapsed >= self._target_green:
             return True, self._target_reason
 
@@ -150,8 +138,8 @@ class VAController:
         return max(0.0, self._target_green - self._phase_elapsed)
 
     def _compute_target_green(self):
-        """根据切换时刻的车辆数计算目标绿灯时长"""
-        q_cur  = self.last_queue_x if self._phase == 0 else self.last_queue_y
+        """根据切换时刻车辆数计算目标绿灯"""
+        q_cur   = self.last_queue_x if self._phase == 0 else self.last_queue_y
         q_other = self.last_queue_y if self._phase == 0 else self.last_queue_x
         total = q_cur + q_other
 
@@ -180,11 +168,9 @@ class VAController:
     def _end_yellow(self):
         self._phase = 1 - self._phase
         self._phase_elapsed = 0.0
-        self._red_elapsed = 0.0  # 切换后重置对向红灯计时器
+        self._red_elapsed = 0.0
         self._in_yellow = False
         self._cycle_num += 1
-
-        # 切换时根据当前车辆数确定下一次的目标绿灯时长
         self._compute_target_green()
 
     # ── 状态查询 ──────────────────────────────────────────

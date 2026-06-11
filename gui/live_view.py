@@ -34,6 +34,7 @@ class _LiveViewHost(Protocol):
     y_light: str
     sim_speed: float
     last_tick: float
+    _last_decision_time: float
     va_controller: Any
     va_features: Any
     va_pair_summary: Any
@@ -232,35 +233,38 @@ class LiveViewMixin:
         if not self.sim_running or self.sim_paused:
             return
 
-        if self._sim_live_mode:
-            now = time.time()
-            dt = now - self.last_tick
-            self.last_tick = now
-            self.va_features = self._build_live_dual_features(dt)
-            feats = self.va_features
-            x_light, y_light, countdown = self.va_controller.step(
-                feats["queue_x"], feats["queue_y"],
-                dt,
-            )
-            self._update_sim_ui(x_light, y_light, countdown, dt)
-            return
-
-        if self.va_pair_summary is None:
-            return
-
         now = time.time()
-        dt = (now - self.last_tick) * self.sim_speed
-        self.last_tick = now
 
-        self.va_features = self._build_pair_features(dt)
-        feats = self.va_features
-        x_light, y_light, countdown = self.va_controller.step(
-            feats["queue_x"], feats["queue_y"],
-            dt,
-        )
-        self._update_sim_ui(x_light, y_light, countdown, dt)
+        # ── 每秒运行一次控制器决策 ──
+        if self._last_decision_time == 0.0 or now - self._last_decision_time >= 1.0:
+            if self._last_decision_time == 0.0:
+                dt = 1.0
+            else:
+                dt = now - self._last_decision_time
+            self._last_decision_time = now
 
-    def _update_sim_ui(self: _LiveViewHost, x_light, y_light, countdown, dt):
+            if self._sim_live_mode:
+                self.va_features = self._build_live_dual_features(dt)
+            elif self.va_pair_summary is not None:
+                self.va_features = self._build_pair_features(dt)
+            else:
+                self.va_features = None
+
+            if self.va_features:
+                self._last_step_result = self.va_controller.step(
+                    self.va_features["queue_x"],
+                    self.va_features["queue_y"],
+                    dt,
+                )
+            else:
+                self._last_step_result = None
+
+        # ── 每 33ms 刷新 UI（从缓存状态读取） ──
+        if self._last_step_result:
+            self._refresh_sim_ui()
+
+    def _refresh_sim_ui(self: _LiveViewHost):
+        x_light, y_light, countdown = self._last_step_result
         state = self.va_controller.get_state()
         feats = self.va_features or {
             "queue_x": 0, "queue_y": 0,
@@ -268,16 +272,24 @@ class LiveViewMixin:
         is_yellow = state["in_yellow"]
         target_green = float(state.get("target_green", self.va_controller.max_green))
 
+        # 平滑倒计时
+        elapsed_since_step = time.time() - self._last_decision_time
+        if countdown is not None:
+            smooth_countdown = max(0, countdown - elapsed_since_step)
+        else:
+            smooth_countdown = None
+
         self.x_light = x_light
         self.y_light = y_light
 
-        if countdown is not None:
-            self.timer_text.setText(f"{math.ceil(countdown)}s")
+        if smooth_countdown is not None:
+            self.timer_text.setText(f"{math.ceil(smooth_countdown)}s")
 
         if is_yellow:
             yd = self.va_controller.yellow_duration
+            elapsed_yellow = state["yellow_elapsed"] + elapsed_since_step
             self.progress_bar.setValue(
-                int(state["yellow_elapsed"] / yd * 100) if yd > 0 else 0
+                int(min(elapsed_yellow, yd) / yd * 100) if yd > 0 else 0
             )
             self.progress_bar.setStyleSheet(f"""
                 QProgressBar {{ background: {C_PROGRESS_BG}; border: none; border-radius: 3px; }}
@@ -285,8 +297,9 @@ class LiveViewMixin:
             """)
         else:
             m = target_green
+            elapsed_green = state["phase_elapsed"] + elapsed_since_step
             self.progress_bar.setValue(
-                int(state["phase_elapsed"] / m * 100) if m > 0 else 0
+                int(min(elapsed_green, m) / m * 100) if m > 0 else 0
             )
             self.progress_bar.setStyleSheet(f"""
                 QProgressBar {{ background: {C_PROGRESS_BG}; border: none; border-radius: 3px; }}
@@ -294,7 +307,7 @@ class LiveViewMixin:
             """)
 
         self.canvas.update_state(
-            x_light, y_light, feats["queue_x"], feats["queue_y"], countdown
+            x_light, y_light, feats["queue_x"], feats["queue_y"], smooth_countdown
         )
 
         if is_yellow:
@@ -320,7 +333,7 @@ class LiveViewMixin:
                 observed_queue_y=float(feats.get("queue_y", 0)),
                 observed_passed_x=float(feats.get("line_count_x", 0)),
                 observed_passed_y=float(feats.get("line_count_y", 0)),
-                dt=max(float(dt), 0.0),
+                dt=1.0,
             )
             switch_count = int(self.efficiency_snapshot.adaptive_switch_count)
             if switch_count != self.efficiency_last_switch_count or not self.efficiency_view.toPlainText().strip():
@@ -337,7 +350,7 @@ class LiveViewMixin:
         )
         self.metrics_view.setText(metrics_text)
 
-        countdown_text = "--" if countdown is None else f"{math.ceil(countdown)}s"
+        countdown_text = "--" if smooth_countdown is None else f"{math.ceil(smooth_countdown)}s"
         overview_text = (
             f"{mode_tag} / 周期 #{state['cycle_num'] + 1}\n"
             f"阶段: {state['phase']}  倒计时: {countdown_text}\n"

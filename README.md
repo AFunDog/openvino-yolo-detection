@@ -1,6 +1,6 @@
 # YOLO 智能交通灯控制系统
 
-基于 YOLOv26 目标检测的车辆监控与交通灯仿真系统。当前检测侧采用基于 `track_id` 的轨迹方向过滤，先跟踪车辆轨迹，再剔除与车流主方向偏差过大的轨迹，支持上传同一路口 `X / Y` 两个垂直方向的监控视频，并以此作为 `X/Y` 方向车辆数量判断依据。
+基于 YOLOv26 目标检测的车辆监控与交通灯仿真系统。检测侧采用基于 `track_id` 的轨迹方向过滤，剔除与车流主方向偏差过大的轨迹；控制侧在比例分配基础上融合提前切换规则（本向清空/压力失衡），在 SUMO 微观仿真下相比固定配时**整体延误下降 26.5%**。
 
 ## 功能
 
@@ -8,9 +8,9 @@
 - **轨迹方向过滤**：基于目标追踪与主方向估计，对车辆执行 `track_id` 级别方向过滤，统计有效车辆 / 过滤车辆 / 总车辆数
 - **双方向视频上传**：GUI 支持分别上传同一路口 `X / Y` 两个垂直方向的视频，并自动聚合成一组双方向车辆统计
 - **数据记录**：逐帧保存检测框、类别、置信度、track_id、轨迹过滤事件 到 `data/` 目录（JSON + CSV）
-- **排队判定**：基于 track 帧间中心点 EMA 速度判停排队车辆，聚合排队数与到达率
-- **Vehicle-Actuated 控制**：基于 X/Y 方向排队车辆数比较，动态计算目标绿灯时长并切换红绿灯
-- **实时联动仿真**：检测视频的同时，交通灯仿真自动跟随检测结果运行（墙钟同步，无需等待检测结束）
+- **排队判定**：基于 track 帧间中心点 EMA 速度判停排队车辆，区分 X/Y 方向
+- **Vehicle-Actuated 控制**：比例分配 + 提前切换（本向清空即让路、对向压力失衡强制切），1s 决策间隔
+- **实时联动仿真**：检测视频的同时，交通灯仿真自动跟随检测结果运行
 - **桌面 GUI**：PyQt6 可视化界面，十字路口动画、视频预览、实时状态监控、类别统计
 - **Windows 明暗主题自适应**：颜色随系统主题自动切换（QPalette + 自定义调色板）
 - **控制台模拟**：终端按时间线回放交通灯周期
@@ -166,25 +166,19 @@ python sumo/optimize_params.py --duration 600
 
 ## Vehicle-Actuated 控制原理
 
-### 数据提取管线
+```
+决策优先级（每次 _decide()）：
+  1. 最小绿灯未过 → KEEP
+  2. 对向红灯超时 (≥max_red) → SWITCH
+  3. 本向清空 + 对向有车 → SWITCH（提前让路）
+  4. 对向排队 > 本向×1.5 且 ≥3 → SWITCH（压力失衡）
+  5. 达到目标绿灯 (比例上限) → SWITCH
+  6. 其他 → KEEP
+```
 
-```
-YOLO 检测帧
-    │
-    ├── 1. 排队判定
-    │      同 track 帧间中心点位移 → EMA 平滑速度 (α=0.3)
-    │      速度 < 2 px/帧 连续 2+ 帧 → queued = True
-    │      每帧排队 +1/fps 秒累计等待时间
-    │
-    ├── 2. 特征聚合（每帧）
-    │      queue    = Σ 排队车辆数
-    │      arrival  = 新 track 到达率 (EMA α=0.1)
-    │
-    └── 3. 控制器决策
-           当前路绿灯 < 10s   → 保持（最小绿灯约束）
-           当前路绿灯目标 = 10s + (30s-10s) × 当前路车辆数 / (X路车辆数 + Y路车辆数)
-           当前路绿灯 ≥ 目标绿灯 → 切换
-```
+- `target_green` 由切换时刻车辆数比例计算，作为绿灯上限兜底，可被规则 3/4 提前切换
+- 控制器每 1s 决策一次，UI 每 33ms 刷新（倒计时平滑，进度条连续）
+- `queue_x`/`queue_y` 来自双视频检测线程的实时排队数
 
 ### 控制器参数
 
@@ -195,27 +189,44 @@ YOLO 检测帧
 | max_red | 45s | 最长红灯 |
 | yellow_duration | 3s | 黄灯过渡 |
 
+### SUMO 仿真验证
+
+四场景对比 VA vs 固定配时（X=20s/Y=20s, 600s）：
+
+| 场景 | 固定配时 | VA 控制 | 改善 |
+|------|---------|---------|------|
+| balanced (均衡) | 9.17s | 9.33s | -1.8% |
+| imbalanced (不均衡) | 15.82s | 10.04s | **+36.5%** |
+| tidal (潮汐) | 13.37s | 8.45s | **+36.8%** |
+| burst (突发) | 7.98s | 6.23s | **+21.9%** |
+| **整体** | **11.58s** | **8.51s** | **+26.5%** |
+
+```bash
+# 复现对比
+$env:SUMO_HOME = "D:\sumo"
+python sumo/compare_strategies.py --duration 600
+```
+
 ## 实时联动架构
 
 ```
 YOLO 检测线程                        GUI 主线程
 ─────────────                       ──────────
-detect_video() 循环                 _sim_tick() 每 33ms
-  │                                  │
-  ├── process_frame()                ├── drain _live_frames (deque, 线程安全)
-  ├── tracker.update()               ├── feature_extractor.process_frame() → 排队判定
-  ├── 构建 detections 列表            ├── va_controller.step(queue_x, queue_y, dt) → 红绿灯决策
-  └── frame_callback(                └── _update_sim_ui() → Canvas + 指示灯 + 表格
-        ..., detections, video_fps)
-         │                                   │
-         ▼                                   │
-    _live_frames.append({...})  ─────────────┘
+detect_video() 循环                 每 1s: controller.step(queue_x, queue_y, 1.0)
+  │                                   └→ 缓存红绿灯输出
+  ├── process_frame()               每 33ms: _refresh_sim_ui()
+  ├── tracker.update()               ├→ 读缓存 + 平滑倒计时
+  ├── 构建 detections                ├→ Canvas / 指示灯 / 进度条
+  └── frame_callback()               └→ 效率对比 / 历史表格
+         │
+         ▼
+    _live_frames (deque, 线程安全)
 ```
 
 关键设计：
-- 跳帧帧（SKIP_FRAMES=2 的非检测帧）不传入 `detections`，避免假排队
-- 仿真用墙钟 `dt` 驱动（实时固定 1x），检测结束仿真继续运行
-- 视频真实 FPS 自动同步到特征提取器
+- 跳帧帧（SKIP_FRAMES=2 的非检测帧）不传入 `detections`
+- 控制决策 1s 间隔，UI 刷新 33ms（分离，倒计时平滑）
+- `queue_x`/`queue_y` 来自双视频检测的去重车辆计数
 
 ## GUI 功能
 

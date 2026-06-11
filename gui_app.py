@@ -56,6 +56,8 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
         self.sim_paused = False
         self.sim_speed = 5.0
         self.last_tick = 0
+        self._last_decision_time = 0.0
+        self._last_step_result = None
         self.detecting = False
         self.detect_progress = None
 
@@ -92,7 +94,7 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
         # 定时器
         self.sim_timer = QTimer()
         self.sim_timer.timeout.connect(self._sim_tick)
-        self.sim_timer.start(33)
+        self.sim_timer.start(33)  # UI 刷新 30fps，决策每 1s 触发
 
         self.video_timer = QTimer()
         self.video_timer.timeout.connect(self._video_tick)
