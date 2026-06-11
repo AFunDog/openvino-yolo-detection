@@ -6,16 +6,17 @@ Vehicle-Actuated 交通灯控制器
 决策逻辑 (每决策步):
   1. 黄灯过渡中 → 自动推进
   2. 已过 < 最小绿灯 → KEEP (安全约束)
-  3. 计算当前相位的目标绿灯时长:
+  3. 对向红灯时长 ≥ max_red → SWITCH (强制切换，防止无限等待)
+  4. 计算当前相位的目标绿灯时长:
        target = min_green + (max_green - min_green) * current / max(current + other, 1)
      其中 current/other 只取当前方向与对向方向的车辆数量
-  4. 当前绿灯已达到 target → SWITCH
-  5. 其他 → KEEP
+  5. 当前绿灯已达到 target → SWITCH
+  6. 其他 → KEEP
 
 参数表:
   min_green: 10s  — 最短绿灯
   max_green: 30s  — 最长绿灯
-  max_red:   45s  — 最长红灯
+  max_red:   45s  — 最长红灯（对向红灯超时强制切换）
   yellow:     3s  — 黄灯过渡
 """
 
@@ -25,15 +26,12 @@ from typing import List, Optional, Tuple
 
 @dataclass
 class PhaseRecord:
-    """每次相位切换的记录"""
     cycle: int
-    phase: str                # 'X' or 'Y'
-    duration: float           # 绿灯时长 (s)
-    reason: str               # 切换原因
+    phase: str
+    duration: float
+    reason: str
     queue_x: int
     queue_y: int
-    wait_x: float
-    wait_y: float
 
 
 class VAController:
@@ -45,15 +43,11 @@ class VAController:
         max_green: float = 30.0,
         max_red: float = 45.0,
         yellow_duration: float = 3.0,
-        gap_seconds: float = 3.0,
-        wait_ratio: float = 1.2,
     ):
         self.min_green = min_green
         self.max_green = max_green
         self.max_red = max_red
         self.yellow_duration = yellow_duration
-        self.gap_seconds = gap_seconds
-        self.wait_ratio = wait_ratio
 
         self._phase: int = 0            # 0=X, 1=Y
         self._phase_elapsed: float = 0.0
@@ -68,10 +62,6 @@ class VAController:
         # 上一帧的特征 (用于显示)
         self.last_queue_x: int = 0
         self.last_queue_y: int = 0
-        self.last_wait_x: float = 0.0
-        self.last_wait_y: float = 0.0
-        self.last_gap_x: float = 0.0
-        self.last_gap_y: float = 0.0
         self.last_target_green: float = min_green
         self.last_compare_ratio: float = 0.5
 
@@ -84,10 +74,6 @@ class VAController:
         self,
         queue_x: int,
         queue_y: int,
-        wait_x: float,
-        wait_y: float,
-        gap_x: float,
-        gap_y: float,
         dt: float,
     ) -> Tuple[str, str, Optional[float]]:
         """
@@ -95,8 +81,6 @@ class VAController:
 
         Args:
             queue_x, queue_y: X/Y 路当前排队车辆数
-            wait_x, wait_y:   X/Y 路总等待时间 (秒)
-            gap_x, gap_y:     X/Y 路已清空时长 (秒)
             dt:               时间步长
 
         Returns:
@@ -106,10 +90,6 @@ class VAController:
 
         self.last_queue_x = queue_x
         self.last_queue_y = queue_y
-        self.last_wait_x = wait_x
-        self.last_wait_y = wait_y
-        self.last_gap_x = gap_x
-        self.last_gap_y = gap_y
 
         # ── 黄灯过渡 ──
         if self._in_yellow:
@@ -133,7 +113,6 @@ class VAController:
         should_switch, reason = self._decide()
 
         if should_switch:
-            # 记录本轮相位
             self.phase_history.append(PhaseRecord(
                 cycle=self._cycle_num,
                 phase="X" if self._phase == 0 else "Y",
@@ -141,8 +120,6 @@ class VAController:
                 reason=reason,
                 queue_x=self.last_queue_x,
                 queue_y=self.last_queue_y,
-                wait_x=self.last_wait_x,
-                wait_y=self.last_wait_y,
             ))
             self._in_yellow = True
             self._yellow_elapsed = 0.0
@@ -162,7 +139,11 @@ class VAController:
         if self._phase_elapsed < self.min_green:
             return False, "最小绿灯"
 
-        # 2. 目标绿灯时长（切换时已确定，此处直接使用）
+        # 2. 对向红灯超时 → 强制切换
+        if self._red_elapsed >= self.max_red:
+            return True, f"对向红灯{self._red_elapsed:.0f}s≥{self.max_red:.0f}s"
+
+        # 3. 目标绿灯时长（切换时已确定，此处直接使用）
         if self._phase_elapsed >= self._target_green:
             return True, self._target_reason
 
@@ -200,7 +181,6 @@ class VAController:
         self.last_compare_ratio = ratio
 
     def _end_yellow(self):
-        old = self._phase
         self._phase = 1 - self._phase
         self._phase_elapsed = 0.0
         self._in_yellow = False
@@ -221,10 +201,6 @@ class VAController:
             "cycle_num": self._cycle_num,
             "queue_x": self.last_queue_x,
             "queue_y": self.last_queue_y,
-            "wait_x": self.last_wait_x,
-            "wait_y": self.last_wait_y,
-            "gap_x": self.last_gap_x,
-            "gap_y": self.last_gap_y,
             "target_green": self.last_target_green,
             "compare_ratio": self.last_compare_ratio,
         }
@@ -245,9 +221,5 @@ class VAController:
         self.phase_history.clear()
         self.last_queue_x = 0
         self.last_queue_y = 0
-        self.last_wait_x = 0.0
-        self.last_wait_y = 0.0
-        self.last_gap_x = 0.0
-        self.last_gap_y = 0.0
         self.last_target_green = self.min_green
         self.last_compare_ratio = 0.5

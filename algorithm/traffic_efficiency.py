@@ -233,10 +233,6 @@ class RealtimeEfficiencyTracker:
         adaptive_x_state, adaptive_y_state, _ = self.adaptive_controller.step(
             int(round(self.adaptive_queue_x)),
             int(round(self.adaptive_queue_y)),
-            0.0,
-            0.0,
-            0.0,
-            0.0,
             dt,
         )
 
@@ -351,10 +347,6 @@ def _simulate_controller(
             x_state, y_state, _ = controller.step(
                 int(round(queue_x)),
                 int(round(queue_y)),
-                0.0,
-                0.0,
-                0.0,
-                0.0,
                 dt,
             )
             switch_count = len(controller.get_history())

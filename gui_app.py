@@ -12,13 +12,13 @@ from pathlib import Path
 
 import cv2
 
-from algorithm import VAController, FrameFeatures
+from algorithm import VAController
 
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QImage, QFont
 
-import theme_manager as tm
+from gui import theme_manager as tm
 from gui.theme import *
 from gui.widgets import NavButton, StatLabel, TrafficLightIndicator
 from gui.live_view import LiveViewMixin
@@ -61,11 +61,6 @@ class MainWindow(UIBuilderMixin, DetectControllerMixin, LiveViewMixin, SessionVi
 
         # Vehicle-Actuated 控制器
         self.va_controller = VAController()
-        self.feature_extractor = FrameFeatures()
-        self.va_frames = []
-        self.va_fps = 30.0
-        self.va_frame_index = 0
-        self.va_sim_time = 0.0
         self.va_features = None
         self.va_pair_summary = None
         self.efficiency_tracker = None
