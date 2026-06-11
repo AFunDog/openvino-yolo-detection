@@ -82,14 +82,46 @@ python scripts/evaluate_signal_efficiency.py data/detection_pair_xxx/summary.jso
 - 评估基于总车流量和视频时长推导出的均匀到达率，属于理论估算，不是逐车精确仿真
 - 输出包含固定配时与自适应配时的通过量、累计延误、平均延误、最大排队和提升率
 
+### SUMO 微观交通仿真
+
+使用 SUMO 进行逐车仿真，更精确地验证和优化 VA 控制算法。
+
+#### 安装
+
+```bash
+# 1. 安装 SUMO (https://sumo.dlr.de/docs/Downloads.html)
+# 2. 安装 Python 接口
+pip install traci
+```
+
+#### 使用
+
+```bash
+# 生成路网和路由
+python sumo/network/generate.py
+python sumo/routes/generate.py
+
+# 运行仿真
+python sumo/sumo_sim.py --scenario balanced --duration 600
+
+# VA vs 固定配时对比
+python sumo/compare_strategies.py --duration 600
+
+# 参数优化（网格搜索）
+python sumo/optimize_params.py --duration 600
+```
+
+支持 4 种交通场景：`balanced`（均衡）、`imbalanced`（不均衡）、`tidal`（潮汐）、`burst`（突发）。
+
+详见 [sumo/README.md](sumo/README.md)。
+
 ## 项目结构
 
 ```text
 ├── algorithm/
 │   ├── __init__.py              # 算法模块入口
-│   ├── data_extractor.py        # 排队分类、特征提取
 │   ├── va_controller.py         # Vehicle-Actuated 控制器
-│   └── traffic_efficiency.py    # 通行效率评估
+│   └── traffic_efficiency.py    # 通行效率评估（流体模型）
 ├── gui/                         # GUI 组件
 │   ├── theme_manager.py         # 主题管理器（明暗调色板 + QPalette）
 │   ├── theme.py                 # 主题辅助函数与 QSS
@@ -111,6 +143,19 @@ python scripts/evaluate_signal_efficiency.py data/detection_pair_xxx/summary.jso
 │   └── models/
 ├── public/
 │   └── yolo-v26/                # YOLOv26 模型（ONNX + OpenVINO IR）
+├── sumo/                        # SUMO 微观交通仿真
+│   ├── network/
+│   │   ├── generate.py           # 路网生成
+│   │   └── intersection.net.xml  # 生成的路网
+│   ├── routes/
+│   │   ├── generate.py           # 路由生成 (4 种场景)
+│   │   ├── balanced.xml          # 均衡场景路由
+│   │   ├── imbalanced.xml        # 不均衡场景路由
+│   │   ├── tidal.xml             # 潮汐场景路由
+│   │   └── burst.xml             # 突发场景路由
+│   ├── sumo_sim.py               # TraCI 仿真主循环
+│   ├── compare_strategies.py     # VA vs 固定配时对比
+│   └── optimize_params.py        # 参数优化
 ├── scripts/
 │   ├── downloader.ps1           # 模型下载
 │   ├── converter.ps1            # 模型转换
