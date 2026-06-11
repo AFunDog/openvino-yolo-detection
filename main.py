@@ -17,9 +17,6 @@ import time
 import json
 import csv
 from datetime import datetime
-from functools import lru_cache
-
-from PIL import Image, ImageDraw, ImageFont
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -91,48 +88,25 @@ def _safe_name(text):
     return cleaned[:40] or "source"
 
 
-@lru_cache(maxsize=4)
-def _get_font(font_size):
-    """加载中文字体，优先使用 Microsoft YaHei。"""
-    candidates = [
-        r"C:\Windows\Fonts\msyh.ttc",
-        r"C:\Windows\Fonts\msyh.ttf",
-        r"C:\Windows\Fonts\simhei.ttf",
-        r"C:\Windows\Fonts\simsun.ttc",
-    ]
-    for font_path in candidates:
-        if os.path.exists(font_path):
-            try:
-                return ImageFont.truetype(font_path, font_size)
-            except Exception:
-                continue
-    return ImageFont.load_default()
-
-
-def _draw_chinese_labels(img, labels):
-    """使用 PIL 一次性绘制一组中文标签。"""
+def _draw_english_labels(img, labels):
+    """使用 OpenCV 绘制英文标签（纯 cv2，无 PIL 转换开销）。"""
     if not labels:
         return img
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    pil_img = Image.fromarray(rgb)
-    draw = ImageDraw.Draw(pil_img)
-    font_size = max(12, int(18 * DISPLAY_LABEL_SCALE))
-    font = _get_font(font_size)
-    pad_x = 6
-    pad_y = 4
+    font = DISPLAY_LABEL_FONT
+    scale = DISPLAY_LABEL_SCALE
+    thickness = 1
+    pad_x = 4
+    pad_y = 2
     for x, y, label, box_color in labels:
-        bbox = draw.textbbox((0, 0), label, font=font)
-        text_w = bbox[2] - bbox[0]
-        text_h = bbox[3] - bbox[1]
-        bg_left = x
-        bg_top = max(0, y - text_h - pad_y * 2)
-        bg_right = min(pil_img.width, x + text_w + pad_x * 2)
-        bg_bottom = min(pil_img.height, y)
-        draw.rectangle([bg_left, bg_top, bg_right, bg_bottom], fill=tuple(int(v) for v in box_color))
-        text_x = bg_left + pad_x
-        text_y = bg_top + pad_y - bbox[1]
-        draw.text((text_x, text_y), label, font=font, fill=DISPLAY_TEXT_COLOR)
-    return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+        (text_w, text_h), baseline = cv2.getTextSize(label, font, scale, thickness)
+        bg_top = max(0, y - text_h - baseline - pad_y * 2)
+        bg_bot = min(img.shape[0], int(y))
+        bg_left = int(x)
+        bg_right = min(img.shape[1], int(x + text_w + pad_x * 2))
+        cv2.rectangle(img, (bg_left, bg_top), (bg_right, bg_bot), box_color, -1)
+        cv2.putText(img, label, (bg_left + pad_x, bg_bot - pad_y),
+                    font, scale, DISPLAY_TEXT_COLOR, thickness, cv2.LINE_AA)
+    return img
 
 
 def draw_info_panel(img, lines, origin=(10, 10), text_color=(255, 0, 0), bg_color=(255, 255, 255), alpha=0.65):
@@ -740,7 +714,7 @@ def process_frame(frame, detector):
 
 
 def draw_detections(img, boxes, confidences, class_ids, classes, track_ids=None, statuses=None):
-    """在图像上绘制检测结果"""
+    """在图像上绘制检测结果（纯英文 OpenCV 绘制，高性能）。"""
     label_items = []
     for i, box in enumerate(boxes):
         x1, y1, x2, y2 = map(int, box)
@@ -750,29 +724,29 @@ def draw_detections(img, boxes, confidences, class_ids, classes, track_ids=None,
 
         if status == "keep":
             box_color = DISPLAY_BOX_COLOR_KEEP
-            status_text = "有效"
+            status_text = "KEEP"
         elif status == "reject":
             box_color = DISPLAY_BOX_COLOR_REJECT
-            status_text = "无效"
-        elif status == "slow" or status == "pending":
+            status_text = "REJ"
+        elif status == "slow":
             box_color = DISPLAY_BOX_COLOR_SLOW
-            status_text = "低速/待定"
+            status_text = "SLOW"
         else:
             box_color = DISPLAY_BOX_COLOR_PENDING
-            status_text = "待定"
+            status_text = "PEND"
 
         # 绘制边界框
         cv2.rectangle(img, (x1, y1), (x2, y2), box_color, DISPLAY_BOX_THICKNESS)
 
         # 绘制标签
-        class_name = classes[class_ids[i]] if 0 <= class_ids[i] < len(classes) else f"class_{class_ids[i]}"
+        class_name = classes[class_ids[i]] if 0 <= class_ids[i] < len(classes) else f"cls{class_ids[i]}"
         if track_ids is not None and i < len(track_ids):
-            label = f"{status_text} | ID {track_ids[i]} | {class_name} | {confidences[i]:.2f}"
+            label = f"{status_text} ID{track_ids[i]} {class_name} {confidences[i]:.2f}"
         else:
-            label = f"{status_text} | {class_name} | {confidences[i]:.2f}"
+            label = f"{status_text} {class_name} {confidences[i]:.2f}"
         label_items.append((x1, y1, label, box_color))
 
-    return _draw_chinese_labels(img, label_items)
+    return _draw_english_labels(img, label_items)
 
 
 def draw_counting_line(img, line_info, total_count, count_in, count_out, count_slow=0):
@@ -792,10 +766,10 @@ def draw_counting_line(img, line_info, total_count, count_in, count_out, count_s
     cv2.circle(img, anchor_pt, 4, (0, 200, 255), -1)
     cv2.putText(
         img,
-        f"Tracks: {total_count}  Keep:{count_in}  Slow:{count_slow}  Reject:{count_out}",
+        f"Tracks:{total_count}  Keep:{count_in}  Slow:{count_slow}  Reject:{count_out}",
         (10, 90),
         DISPLAY_LABEL_FONT,
-        0.8,
+        0.7,
         (0, 200, 255),
         2,
     )
