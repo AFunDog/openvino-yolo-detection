@@ -111,6 +111,18 @@ class RealtimeEfficiencySnapshot:
         return _reduction(self.adaptive_delay, self.fixed_delay)
 
     @property
+    def fixed_avg_delay(self) -> float:
+        return _safe_div(self.fixed_delay, self.arrived_total)
+
+    @property
+    def adaptive_avg_delay(self) -> float:
+        return _safe_div(self.adaptive_delay, self.arrived_total)
+
+    @property
+    def avg_delay_reduction(self) -> float:
+        return _reduction(self.adaptive_avg_delay, self.fixed_avg_delay)
+
+    @property
     def max_queue_reduction(self) -> float:
         return _reduction(self.adaptive_max_queue, self.fixed_max_queue)
 
@@ -393,6 +405,10 @@ def _simulate_controller(
     )
 
 
+def _safe_div(numerator: float, denominator: float) -> float:
+    return numerator / denominator if denominator > 0 else 0.0
+
+
 def _gain(new_value: float, base_value: float) -> float:
     if abs(base_value) <= 1e-9:
         return 0.0
@@ -506,21 +522,21 @@ def format_report_text(report: EvaluationReport) -> str:
         "固定配时:\n"
         f"  通过量: {fixed.passed_total:.2f} / {fixed.arrived_total:.2f} 辆\n"
         f"  累计延误: {fixed.total_delay:.2f} 车秒\n"
-        f"  平均延误: {fixed.avg_delay:.2f} s/辆\n"
+        f"  平均等待时长: {fixed.avg_delay:.2f} s/辆\n"
         f"  最大排队: {fixed.max_queue_total:.2f} 辆\n"
         f"  切换次数: {fixed.switch_count}\n"
         "\n"
         "自适应配时:\n"
         f"  通过量: {adaptive.passed_total:.2f} / {adaptive.arrived_total:.2f} 辆\n"
         f"  累计延误: {adaptive.total_delay:.2f} 车秒\n"
-        f"  平均延误: {adaptive.avg_delay:.2f} s/辆\n"
+        f"  平均等待时长: {adaptive.avg_delay:.2f} s/辆\n"
         f"  最大排队: {adaptive.max_queue_total:.2f} 辆\n"
         f"  切换次数: {adaptive.switch_count}\n"
         "\n"
         "对比结果:\n"
         f"  理论通过量提升: {comp['throughput_gain'] * 100:.2f}%\n"
         f"  累计延误下降: {comp['delay_reduction'] * 100:.2f}%\n"
-        f"  平均延误下降: {comp['avg_delay_reduction'] * 100:.2f}%\n"
+        f"  平均等待时长下降: {comp['avg_delay_reduction'] * 100:.2f}%\n"
         f"  最大排队下降: {comp['max_queue_reduction'] * 100:.2f}%\n"
         f"  切换次数下降: {comp['switch_count_reduction'] * 100:.2f}%\n"
     )
@@ -532,6 +548,7 @@ def format_realtime_snapshot_text(snapshot: RealtimeEfficiencySnapshot) -> str:
         f"固定配时通过: {snapshot.fixed_passed_total:.1f}  自适应通过: {snapshot.adaptive_passed_total:.1f}\n"
         f"理论通过量提升: {snapshot.throughput_gain * 100:.2f}%\n"
         f"固定累计延误: {snapshot.fixed_delay:.1f}  自适应累计延误: {snapshot.adaptive_delay:.1f}  延误下降: {snapshot.delay_reduction * 100:.2f}%\n"
+        f"固定平均等待: {snapshot.fixed_avg_delay:.2f}s/辆  自适应平均等待: {snapshot.adaptive_avg_delay:.2f}s/辆  平均等待下降: {snapshot.avg_delay_reduction * 100:.2f}%\n"
         f"固定最大排队: {snapshot.fixed_max_queue:.1f}  自适应最大排队: {snapshot.adaptive_max_queue:.1f}  排队下降: {snapshot.max_queue_reduction * 100:.2f}%\n"
         f"切换次数: 固定={snapshot.fixed_switch_count}  自适应={snapshot.adaptive_switch_count}"
     )

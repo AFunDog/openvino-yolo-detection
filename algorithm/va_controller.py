@@ -105,10 +105,7 @@ class VAController:
 
         # ── 正常决策 ──
         self._phase_elapsed += dt
-        if self._phase == 0:
-            self._red_elapsed = 0.0  # X绿时 Y红灯计时
-        else:
-            self._red_elapsed += dt
+        self._red_elapsed += dt  # 对向红灯计时（X绿时Y红灯 / Y绿时X红灯）
 
         should_switch, reason = self._decide()
 
@@ -183,6 +180,7 @@ class VAController:
     def _end_yellow(self):
         self._phase = 1 - self._phase
         self._phase_elapsed = 0.0
+        self._red_elapsed = 0.0  # 切换后重置对向红灯计时器
         self._in_yellow = False
         self._cycle_num += 1
 
