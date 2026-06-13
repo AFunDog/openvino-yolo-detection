@@ -108,7 +108,7 @@ python sumo/sumo_sim.py --scenario balanced --duration 600
 python sumo/compare_strategies.py --duration 600
 
 # 参数优化（网格搜索）
-python sumo/optimize_params.py --duration 600
+python sumo/optimize_params.py --duration 300
 ```
 
 支持 4 种交通场景：`balanced`（均衡）、`imbalanced`（不均衡）、`tidal`（潮汐）、`burst`（突发）。
@@ -155,7 +155,7 @@ python sumo/optimize_params.py --duration 600
 │   │   └── burst.xml             # 突发场景路由
 │   ├── sumo_sim.py               # TraCI 仿真主循环
 │   ├── compare_strategies.py     # VA vs 固定配时对比
-│   └── optimize_params.py        # 参数优化
+│   └── optimize_params.py        # 参数优化 (网格搜索, 108组)
 ├── scripts/
 │   ├── downloader.ps1           # 模型下载
 │   ├── converter.ps1            # 模型转换
@@ -186,12 +186,12 @@ python sumo/optimize_params.py --duration 600
 |------|--------|------|
 | min_green | 10s | 最短绿灯 |
 | max_green | 30s | 最长绿灯 |
-| max_red | 45s | 最长红灯 |
+| max_red | 25s | 最长红灯 (SUMO优化) |
 | yellow_duration | 3s | 黄灯过渡 |
 
 ### SUMO 仿真验证
 
-四场景对比 VA vs 固定配时（X=20s/Y=20s, 600s）：
+四场景对比 VA(优化后: min=10s/max=30s/red=25s) vs 固定配时(X=20s/Y=20s, 600s)：
 
 | 场景 | 固定配时 | VA 控制 | 改善 |
 |------|---------|---------|------|
@@ -200,6 +200,8 @@ python sumo/optimize_params.py --duration 600
 | tidal (潮汐) | 13.37s | 8.45s | **+36.8%** |
 | burst (突发) | 7.98s | 6.23s | **+21.9%** |
 | **整体** | **11.58s** | **8.51s** | **+26.5%** |
+
+参数经网格搜索优化(108组×4场景×300s)得出，详见 `sumo/optimization_results.json`。
 
 ```bash
 # 复现对比

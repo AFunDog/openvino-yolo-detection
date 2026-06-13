@@ -12,7 +12,7 @@ Vehicle-Actuated 交通灯控制器
 参数:
   min_green: 10s  — 最短绿灯
   max_green: 30s  — 最长绿灯
-  max_red:   45s  — 最长红灯
+  max_red:   25s  — 最长红灯 (SUMO优化结果)
   yellow:     3s  — 黄灯过渡
 """
 
@@ -37,7 +37,7 @@ class VAController:
         self,
         min_green: float = 10.0,
         max_green: float = 30.0,
-        max_red: float = 45.0,
+        max_red: float = 25.0,
         yellow_duration: float = 3.0,
     ):
         self.min_green = min_green

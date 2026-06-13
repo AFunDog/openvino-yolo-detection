@@ -28,6 +28,7 @@ SUMO_DIR = Path(__file__).parent
 NET_FILE = SUMO_DIR / "network" / "intersection.net.xml"
 SUMO_HOME = os.environ.get("SUMO_HOME", "")
 SUMO_BIN = Path(SUMO_HOME) / "bin" / "sumo.exe" if SUMO_HOME else "sumo"
+SUMO_GUI_BIN = Path(SUMO_HOME) / "bin" / "sumo-gui.exe" if SUMO_HOME else "sumo-gui"
 
 
 @dataclass
@@ -49,6 +50,8 @@ def run_fixed_time(
     duration: float = 1800.0,
     green_x: float = 20.0,
     green_y: float = 20.0,
+    gui: bool = False,
+    delay: float = 0.0,
     verbose: bool = True,
 ) -> CompareResult:
     """运行固定配时仿真"""
@@ -64,11 +67,13 @@ def run_fixed_time(
         raise FileNotFoundError(f"路网文件不存在: {NET_FILE}")
 
     sumo_cmd = [
-        str(SUMO_BIN),
+        str(SUMO_GUI_BIN if gui else SUMO_BIN),
         "-n", str(NET_FILE),
         "-r", str(route_file),
         "--step-length", "1.0",
+        "--delay", str(delay),
         "--no-warnings", "true",
+        "--no-step-log", "true",
         "--quit-on-end",
         "--start",
     ]
@@ -162,6 +167,8 @@ def run_va_control(
     scenario: str,
     duration: float = 1800.0,
     controller_params: Optional[dict] = None,
+    gui: bool = False,
+    delay: float = 0.0,
     verbose: bool = True,
 ) -> CompareResult:
     """运行 VA 控制仿真"""
@@ -177,11 +184,13 @@ def run_va_control(
         raise FileNotFoundError(f"路网文件不存在: {NET_FILE}")
 
     sumo_cmd = [
-        str(SUMO_BIN),
+        str(SUMO_GUI_BIN if gui else SUMO_BIN),
         "-n", str(NET_FILE),
         "-r", str(route_file),
         "--step-length", "1.0",
+        "--delay", str(delay),
         "--no-warnings", "true",
+        "--no-step-log", "true",
         "--quit-on-end",
         "--start",
     ]
@@ -254,9 +263,15 @@ def compare(
     fixed_green_x: float = 20.0,
     fixed_green_y: float = 20.0,
     va_params: Optional[dict] = None,
+    gui: bool = False,
+    delay: float = 0.0,
+    pause: bool = False,
 ) -> dict:
     """
     运行完整对比
+
+    Args:
+        pause: GUI模式下，每个仿真结束后暂停，按Enter继续
 
     Returns:
         对比结果字典
@@ -273,25 +288,34 @@ def compare(
     print(f"仿真时长: {duration}s")
     print(f"固定配时: X={fixed_green_x}s, Y={fixed_green_y}s")
     print(f"VA 参数: {va_params or '默认'}")
+    if gui:
+        print(f"GUI延迟: {delay}ms  |  对比模式: 依次展示")
     print("=" * 70)
 
-    for scenario in scenarios:
-        print(f"\n场景: {scenario}")
-        print("-" * 50)
+    for i, scenario in enumerate(scenarios, 1):
+        print(f"\n\033[1;36m{'=' * 60}\033[0m")
+        print(f"\033[1;36m  [{i}/{len(scenarios)}] 场景: {scenario}\033[0m")
+        print(f"\033[1;36m{'=' * 60}\033[0m")
 
         # 固定配时
-        fixed = run_fixed_time(scenario, duration, fixed_green_x, fixed_green_y)
+        print(f"\n  >>> 固定配时 (Fixed-Time) 仿真运行中 ...")
+        fixed = run_fixed_time(scenario, duration, fixed_green_x, fixed_green_y, gui=gui, delay=delay)
         print(f"  固定配时: avg_delay={fixed.avg_delay:.2f}s, "
               f"passed={fixed.passed_total:.0f}, "
               f"max_queue={fixed.max_queue_total:.0f}, "
               f"switches={fixed.switch_count}")
+        if gui and pause:
+            input("  [Enter] 继续 VA 自适应仿真...")
 
         # VA 控制
-        va = run_va_control(scenario, duration, va_params)
+        print(f"\n  >>> VA 自适应 仿真运行中 ...")
+        va = run_va_control(scenario, duration, va_params, gui=gui, delay=delay)
         print(f"  VA 控制:  avg_delay={va.avg_delay:.2f}s, "
               f"passed={va.passed_total:.0f}, "
               f"max_queue={va.max_queue_total:.0f}, "
               f"switches={va.switch_count}")
+        if gui and pause and i < len(scenarios):
+            input("  [Enter] 继续下一个场景...")
 
         # 计算提升
         delay_reduction = ((fixed.avg_delay - va.avg_delay) / fixed.avg_delay * 100
@@ -299,8 +323,8 @@ def compare(
         queue_reduction = ((fixed.max_queue_total - va.max_queue_total) / fixed.max_queue_total * 100
                           if fixed.max_queue_total > 0 else 0)
 
-        print(f"  延误下降: {delay_reduction:.1f}%")
-        print(f"  排队下降: {queue_reduction:.1f}%")
+        print(f"  \033[32m延误下降: {delay_reduction:.1f}%\033[0m")
+        print(f"  \033[32m排队下降: {queue_reduction:.1f}%\033[0m")
 
         results[scenario] = {
             "fixed": {
@@ -350,7 +374,12 @@ if __name__ == "__main__":
     parser.add_argument("--fixed-green-y", type=float, default=20.0)
     parser.add_argument("--min-green", type=float, default=10.0)
     parser.add_argument("--max-green", type=float, default=30.0)
-    parser.add_argument("--max-red", type=float, default=45.0)
+    parser.add_argument("--max-red", type=float, default=25.0)
+    parser.add_argument("--gui", action="store_true")
+    parser.add_argument("--delay", type=float, default=0.0,
+                        help="GUI延迟(ms)，建议50-500")
+    parser.add_argument("--pause", action="store_true",
+                        help="GUI模式下切换场景前暂停，按Enter继续")
 
     args = parser.parse_args()
 
@@ -364,4 +393,7 @@ if __name__ == "__main__":
             "max_green": args.max_green,
             "max_red": args.max_red,
         },
+        gui=args.gui,
+        delay=args.delay,
+        pause=args.pause,
     )
