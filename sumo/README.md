@@ -78,7 +78,7 @@ python sumo/sumo_sim.py --scenario balanced --duration 600
 python sumo/sumo_sim.py --scenario balanced --gui
 
 # 自定义参数
-python sumo/sumo_sim.py --scenario imbalanced --min-green 8 --max-green 35 --max-red 50
+python sumo/sumo_sim.py --scenario imbalanced --min-green 8 --max-green 35 --max-red 25
 ```
 
 ### 4. 对比评估
@@ -97,16 +97,18 @@ python sumo/compare_strategies.py --duration 600
 ### 5. 参数优化
 
 ```bash
-# 网格搜索最优参数
-python sumo/optimize_params.py --duration 600
+# 网格搜索最优参数（默认 300s/场景）
+python sumo/optimize_params.py --duration 300
 ```
 
-搜索空间：
+搜索空间（108 组有效组合）：
 - `min_green`: [5, 10, 15]
-- `max_green`: [20, 30, 40, 50]
-- `max_red`: [30, 45, 60]
+- `max_green`: [20, 25, 30, 40, 50, 60]
+- `max_red`: [25, 30, 40, 45, 50, 60]
 
-结果保存到 `sumo/optimization_results.json`。
+**优化结果**：`min_green=10, max_green=30, max_red=25`（四场景平均延误 7.05s）
+
+结果保存到 `sumo/optimization_results.json`，支持增量断点续存。
 
 ## 仿真架构
 

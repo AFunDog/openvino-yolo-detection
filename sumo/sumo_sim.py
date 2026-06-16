@@ -89,6 +89,7 @@ def run_simulation(
     duration: float = 1800.0,
     controller_params: Optional[dict] = None,
     gui: bool = False,
+    delay: float = 0.0,
     verbose: bool = True,
 ) -> SimulationMetrics:
     try:
@@ -107,7 +108,9 @@ def run_simulation(
         "-n", str(NET_FILE),
         "-r", str(route_file),
         "--step-length", "1.0",
+        "--delay", str(delay),
         "--no-warnings", "true",
+        "--no-step-log", "true",
         "--quit-on-end",
         "--start",
     ]
@@ -169,8 +172,10 @@ if __name__ == "__main__":
     parser.add_argument("--duration", type=float, default=600.0)
     parser.add_argument("--min-green", type=float, default=10.0)
     parser.add_argument("--max-green", type=float, default=30.0)
-    parser.add_argument("--max-red", type=float, default=45.0)
+    parser.add_argument("--max-red", type=float, default=25.0)
     parser.add_argument("--gui", action="store_true")
+    parser.add_argument("--delay", type=float, default=0.0,
+                        help="GUI延迟(ms)，值越大越慢，建议50-500")
     parser.add_argument("--quiet", action="store_true")
 
     args = parser.parse_args()
@@ -184,5 +189,6 @@ if __name__ == "__main__":
             "max_red": args.max_red,
         },
         gui=args.gui,
+        delay=args.delay,
         verbose=not args.quiet,
     )

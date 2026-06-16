@@ -7,8 +7,15 @@ YOLOv26 实现代码
 from pathlib import Path
 import math
 import re
+import os
+import sys
 
-import openvino as ov
+# OpenVINO DLL 依赖路径
+_openvino_libs = Path(sys.prefix) / "Lib" / "site-packages" / "openvino" / "libs"
+if _openvino_libs.exists():
+    os.add_dll_directory(str(_openvino_libs))
+
+import openvino.runtime as ov
 import onnxruntime as ort
 import cv2
 import numpy as np

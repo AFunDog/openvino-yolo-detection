@@ -1460,6 +1460,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy" },
+    { name = "onnxruntime" },
     { name = "opencv-python" },
     { name = "openvino" },
     { name = "pyqt6" },
@@ -1472,7 +1473,6 @@ dev = [
     { name = "black" },
     { name = "onnx", version = "1.19.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "onnx", version = "1.21.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
-    { name = "onnxruntime" },
     { name = "openvino-dev" },
     { name = "pre-commit" },
     { name = "ruff" },
@@ -1487,7 +1487,7 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "onnx", marker = "extra == 'dev'" },
-    { name = "onnxruntime", marker = "extra == 'dev'", specifier = "<1.20" },
+    { name = "onnxruntime", specifier = "<1.20" },
     { name = "opencv-python", specifier = ">=4.9.0" },
     { name = "openvino", specifier = ">=2024.6.0" },
     { name = "openvino-dev", marker = "extra == 'dev'" },

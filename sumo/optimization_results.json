@@ -1,0 +1,6519 @@
+{
+  "best_params": {
+    "min_green": 10,
+    "max_green": 30,
+    "max_red": 25
+  },
+  "param_grid": {
+    "min_green": [
+      5,
+      10,
+      15
+    ],
+    "max_green": [
+      20,
+      25,
+      30,
+      40,
+      50,
+      60
+    ],
+    "max_red": [
+      25,
+      30,
+      40,
+      45,
+      50,
+      60
+    ]
+  },
+  "scenarios": [
+    "balanced",
+    "imbalanced",
+    "tidal",
+    "burst"
+  ],
+  "duration": 300.0,
+  "all_results": [
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 12.247191011235955,
+        "total_delay": 1090.0,
+        "passed_total": 89.0,
+        "max_queue_total": 11,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.6625,
+        "total_delay": 453.0,
+        "passed_total": 80.0,
+        "max_queue_total": 6,
+        "switch_count": 27
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.288135593220339,
+        "total_delay": 312.0,
+        "passed_total": 59.0,
+        "max_queue_total": 4,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 12.247191011235955,
+        "total_delay": 1090.0,
+        "passed_total": 89.0,
+        "max_queue_total": 11,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.6625,
+        "total_delay": 453.0,
+        "passed_total": 80.0,
+        "max_queue_total": 6,
+        "switch_count": 27
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.288135593220339,
+        "total_delay": 312.0,
+        "passed_total": 59.0,
+        "max_queue_total": 4,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 12.247191011235955,
+        "total_delay": 1090.0,
+        "passed_total": 89.0,
+        "max_queue_total": 11,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.6625,
+        "total_delay": 453.0,
+        "passed_total": 80.0,
+        "max_queue_total": 6,
+        "switch_count": 27
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.288135593220339,
+        "total_delay": 312.0,
+        "passed_total": 59.0,
+        "max_queue_total": 4,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 12.247191011235955,
+        "total_delay": 1090.0,
+        "passed_total": 89.0,
+        "max_queue_total": 11,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.6625,
+        "total_delay": 453.0,
+        "passed_total": 80.0,
+        "max_queue_total": 6,
+        "switch_count": 27
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.288135593220339,
+        "total_delay": 312.0,
+        "passed_total": 59.0,
+        "max_queue_total": 4,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 12.247191011235955,
+        "total_delay": 1090.0,
+        "passed_total": 89.0,
+        "max_queue_total": 11,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.6625,
+        "total_delay": 453.0,
+        "passed_total": 80.0,
+        "max_queue_total": 6,
+        "switch_count": 27
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.288135593220339,
+        "total_delay": 312.0,
+        "passed_total": 59.0,
+        "max_queue_total": 4,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 12.247191011235955,
+        "total_delay": 1090.0,
+        "passed_total": 89.0,
+        "max_queue_total": 11,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.6625,
+        "total_delay": 453.0,
+        "passed_total": 80.0,
+        "max_queue_total": 6,
+        "switch_count": 27
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.288135593220339,
+        "total_delay": 312.0,
+        "passed_total": 59.0,
+        "max_queue_total": 4,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 10.065934065934066,
+        "total_delay": 916.0,
+        "passed_total": 91.0,
+        "max_queue_total": 9,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.139240506329114,
+        "total_delay": 406.0,
+        "passed_total": 79.0,
+        "max_queue_total": 6,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 10.065934065934066,
+        "total_delay": 916.0,
+        "passed_total": 91.0,
+        "max_queue_total": 9,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.139240506329114,
+        "total_delay": 406.0,
+        "passed_total": 79.0,
+        "max_queue_total": 6,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 10.065934065934066,
+        "total_delay": 916.0,
+        "passed_total": 91.0,
+        "max_queue_total": 9,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.139240506329114,
+        "total_delay": 406.0,
+        "passed_total": 79.0,
+        "max_queue_total": 6,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 10.065934065934066,
+        "total_delay": 916.0,
+        "passed_total": 91.0,
+        "max_queue_total": 9,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.139240506329114,
+        "total_delay": 406.0,
+        "passed_total": 79.0,
+        "max_queue_total": 6,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 10.065934065934066,
+        "total_delay": 916.0,
+        "passed_total": 91.0,
+        "max_queue_total": 9,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.139240506329114,
+        "total_delay": 406.0,
+        "passed_total": 79.0,
+        "max_queue_total": 6,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 10.065934065934066,
+        "total_delay": 916.0,
+        "passed_total": 91.0,
+        "max_queue_total": 9,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.139240506329114,
+        "total_delay": 406.0,
+        "passed_total": 79.0,
+        "max_queue_total": 6,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 12.802197802197803,
+        "total_delay": 1165.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.0,
+        "total_delay": 410.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 12.802197802197803,
+        "total_delay": 1165.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.0,
+        "total_delay": 410.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 12.802197802197803,
+        "total_delay": 1165.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.0,
+        "total_delay": 410.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 12.802197802197803,
+        "total_delay": 1165.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.0,
+        "total_delay": 410.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 12.802197802197803,
+        "total_delay": 1165.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.0,
+        "total_delay": 410.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 12.802197802197803,
+        "total_delay": 1165.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 28
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.0,
+        "total_delay": 410.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 12.465909090909092,
+        "total_delay": 1097.0,
+        "passed_total": 88.0,
+        "max_queue_total": 12,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.89873417721519,
+        "total_delay": 545.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 12.465909090909092,
+        "total_delay": 1097.0,
+        "passed_total": 88.0,
+        "max_queue_total": 12,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.89873417721519,
+        "total_delay": 545.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 12.465909090909092,
+        "total_delay": 1097.0,
+        "passed_total": 88.0,
+        "max_queue_total": 12,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.89873417721519,
+        "total_delay": 545.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 12.465909090909092,
+        "total_delay": 1097.0,
+        "passed_total": 88.0,
+        "max_queue_total": 12,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.89873417721519,
+        "total_delay": 545.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 12.465909090909092,
+        "total_delay": 1097.0,
+        "passed_total": 88.0,
+        "max_queue_total": 12,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.89873417721519,
+        "total_delay": 545.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 12.465909090909092,
+        "total_delay": 1097.0,
+        "passed_total": 88.0,
+        "max_queue_total": 12,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.89873417721519,
+        "total_delay": 545.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 25
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 10.793478260869565,
+        "total_delay": 993.0,
+        "passed_total": 92.0,
+        "max_queue_total": 11,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 3.9146341463414633,
+        "total_delay": 321.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 10.793478260869565,
+        "total_delay": 993.0,
+        "passed_total": 92.0,
+        "max_queue_total": 11,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 3.9146341463414633,
+        "total_delay": 321.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 10.793478260869565,
+        "total_delay": 993.0,
+        "passed_total": 92.0,
+        "max_queue_total": 11,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 3.9146341463414633,
+        "total_delay": 321.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 10.793478260869565,
+        "total_delay": 993.0,
+        "passed_total": 92.0,
+        "max_queue_total": 11,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 3.9146341463414633,
+        "total_delay": 321.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 10.793478260869565,
+        "total_delay": 993.0,
+        "passed_total": 92.0,
+        "max_queue_total": 11,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 3.9146341463414633,
+        "total_delay": 321.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 10.793478260869565,
+        "total_delay": 993.0,
+        "passed_total": 92.0,
+        "max_queue_total": 11,
+        "switch_count": 26
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 3.9146341463414633,
+        "total_delay": 321.0,
+        "passed_total": 82.0,
+        "max_queue_total": 6,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 9.877777777777778,
+        "total_delay": 889.0,
+        "passed_total": 90.0,
+        "max_queue_total": 10,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.048780487804878,
+        "total_delay": 414.0,
+        "passed_total": 82.0,
+        "max_queue_total": 7,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 9.877777777777778,
+        "total_delay": 889.0,
+        "passed_total": 90.0,
+        "max_queue_total": 10,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.048780487804878,
+        "total_delay": 414.0,
+        "passed_total": 82.0,
+        "max_queue_total": 7,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 9.877777777777778,
+        "total_delay": 889.0,
+        "passed_total": 90.0,
+        "max_queue_total": 10,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.048780487804878,
+        "total_delay": 414.0,
+        "passed_total": 82.0,
+        "max_queue_total": 7,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 9.877777777777778,
+        "total_delay": 889.0,
+        "passed_total": 90.0,
+        "max_queue_total": 10,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.048780487804878,
+        "total_delay": 414.0,
+        "passed_total": 82.0,
+        "max_queue_total": 7,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 9.877777777777778,
+        "total_delay": 889.0,
+        "passed_total": 90.0,
+        "max_queue_total": 10,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.048780487804878,
+        "total_delay": 414.0,
+        "passed_total": 82.0,
+        "max_queue_total": 7,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 14.0,
+        "total_delay": 1232.0,
+        "passed_total": 88.0,
+        "max_queue_total": 16,
+        "switch_count": 35
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 9.877777777777778,
+        "total_delay": 889.0,
+        "passed_total": 90.0,
+        "max_queue_total": 10,
+        "switch_count": 24
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.048780487804878,
+        "total_delay": 414.0,
+        "passed_total": 82.0,
+        "max_queue_total": 7,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 5,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.517241379310345,
+        "total_delay": 494.0,
+        "passed_total": 58.0,
+        "max_queue_total": 7,
+        "switch_count": 30
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 10.877777777777778,
+        "total_delay": 979.0,
+        "passed_total": 90.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 9.075949367088608,
+        "total_delay": 717.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.586206896551724,
+        "total_delay": 324.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 21
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 10.877777777777778,
+        "total_delay": 979.0,
+        "passed_total": 90.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 9.075949367088608,
+        "total_delay": 717.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.586206896551724,
+        "total_delay": 324.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 21
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 10.877777777777778,
+        "total_delay": 979.0,
+        "passed_total": 90.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 9.075949367088608,
+        "total_delay": 717.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.586206896551724,
+        "total_delay": 324.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 21
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 10.877777777777778,
+        "total_delay": 979.0,
+        "passed_total": 90.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 9.075949367088608,
+        "total_delay": 717.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.586206896551724,
+        "total_delay": 324.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 21
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 10.877777777777778,
+        "total_delay": 979.0,
+        "passed_total": 90.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 9.075949367088608,
+        "total_delay": 717.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.586206896551724,
+        "total_delay": 324.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 21
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 10.877777777777778,
+        "total_delay": 979.0,
+        "passed_total": 90.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 9.075949367088608,
+        "total_delay": 717.0,
+        "passed_total": 79.0,
+        "max_queue_total": 9,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.586206896551724,
+        "total_delay": 324.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 21
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 12.295454545454545,
+        "total_delay": 1082.0,
+        "passed_total": 88.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 7.7375,
+        "total_delay": 619.0,
+        "passed_total": 80.0,
+        "max_queue_total": 7,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.620689655172414,
+        "total_delay": 326.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 12.295454545454545,
+        "total_delay": 1082.0,
+        "passed_total": 88.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 7.7375,
+        "total_delay": 619.0,
+        "passed_total": 80.0,
+        "max_queue_total": 7,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.620689655172414,
+        "total_delay": 326.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 12.295454545454545,
+        "total_delay": 1082.0,
+        "passed_total": 88.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 7.7375,
+        "total_delay": 619.0,
+        "passed_total": 80.0,
+        "max_queue_total": 7,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.620689655172414,
+        "total_delay": 326.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 12.295454545454545,
+        "total_delay": 1082.0,
+        "passed_total": 88.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 7.7375,
+        "total_delay": 619.0,
+        "passed_total": 80.0,
+        "max_queue_total": 7,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.620689655172414,
+        "total_delay": 326.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 12.295454545454545,
+        "total_delay": 1082.0,
+        "passed_total": 88.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 7.7375,
+        "total_delay": 619.0,
+        "passed_total": 80.0,
+        "max_queue_total": 7,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.620689655172414,
+        "total_delay": 326.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 12.295454545454545,
+        "total_delay": 1082.0,
+        "passed_total": 88.0,
+        "max_queue_total": 11,
+        "switch_count": 20
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 7.7375,
+        "total_delay": 619.0,
+        "passed_total": 80.0,
+        "max_queue_total": 7,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.620689655172414,
+        "total_delay": 326.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.159574468085106,
+        "total_delay": 767.0,
+        "passed_total": 94.0,
+        "max_queue_total": 12,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 4.802469135802469,
+        "total_delay": 389.0,
+        "passed_total": 81.0,
+        "max_queue_total": 5,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.258620689655173,
+        "total_delay": 363.0,
+        "passed_total": 58.0,
+        "max_queue_total": 5,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.159574468085106,
+        "total_delay": 767.0,
+        "passed_total": 94.0,
+        "max_queue_total": 12,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 4.802469135802469,
+        "total_delay": 389.0,
+        "passed_total": 81.0,
+        "max_queue_total": 5,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.258620689655173,
+        "total_delay": 363.0,
+        "passed_total": 58.0,
+        "max_queue_total": 5,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.159574468085106,
+        "total_delay": 767.0,
+        "passed_total": 94.0,
+        "max_queue_total": 12,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 4.802469135802469,
+        "total_delay": 389.0,
+        "passed_total": 81.0,
+        "max_queue_total": 5,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.258620689655173,
+        "total_delay": 363.0,
+        "passed_total": 58.0,
+        "max_queue_total": 5,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.159574468085106,
+        "total_delay": 767.0,
+        "passed_total": 94.0,
+        "max_queue_total": 12,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 4.802469135802469,
+        "total_delay": 389.0,
+        "passed_total": 81.0,
+        "max_queue_total": 5,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.258620689655173,
+        "total_delay": 363.0,
+        "passed_total": 58.0,
+        "max_queue_total": 5,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.159574468085106,
+        "total_delay": 767.0,
+        "passed_total": 94.0,
+        "max_queue_total": 12,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 4.802469135802469,
+        "total_delay": 389.0,
+        "passed_total": 81.0,
+        "max_queue_total": 5,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.258620689655173,
+        "total_delay": 363.0,
+        "passed_total": 58.0,
+        "max_queue_total": 5,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.159574468085106,
+        "total_delay": 767.0,
+        "passed_total": 94.0,
+        "max_queue_total": 12,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 4.802469135802469,
+        "total_delay": 389.0,
+        "passed_total": 81.0,
+        "max_queue_total": 5,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.258620689655173,
+        "total_delay": 363.0,
+        "passed_total": 58.0,
+        "max_queue_total": 5,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 9.881720430107526,
+        "total_delay": 919.0,
+        "passed_total": 93.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.063291139240507,
+        "total_delay": 479.0,
+        "passed_total": 79.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 9.881720430107526,
+        "total_delay": 919.0,
+        "passed_total": 93.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.063291139240507,
+        "total_delay": 479.0,
+        "passed_total": 79.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 9.881720430107526,
+        "total_delay": 919.0,
+        "passed_total": 93.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.063291139240507,
+        "total_delay": 479.0,
+        "passed_total": 79.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 9.881720430107526,
+        "total_delay": 919.0,
+        "passed_total": 93.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.063291139240507,
+        "total_delay": 479.0,
+        "passed_total": 79.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 9.881720430107526,
+        "total_delay": 919.0,
+        "passed_total": 93.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.063291139240507,
+        "total_delay": 479.0,
+        "passed_total": 79.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 9.881720430107526,
+        "total_delay": 919.0,
+        "passed_total": 93.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.063291139240507,
+        "total_delay": 479.0,
+        "passed_total": 79.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.96551724137931,
+        "total_delay": 780.0,
+        "passed_total": 87.0,
+        "max_queue_total": 11,
+        "switch_count": 22
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 11.043478260869565,
+        "total_delay": 1016.0,
+        "passed_total": 92.0,
+        "max_queue_total": 10,
+        "switch_count": 18
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 5.098765432098766,
+        "total_delay": 413.0,
+        "passed_total": 81.0,
+        "max_queue_total": 7,
+        "switch_count": 17
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 10,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.741379310344827,
+        "total_delay": 391.0,
+        "passed_total": 58.0,
+        "max_queue_total": 6,
+        "switch_count": 19
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 16.49438202247191,
+        "total_delay": 1468.0,
+        "passed_total": 89.0,
+        "max_queue_total": 14,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 10.831168831168831,
+        "total_delay": 834.0,
+        "passed_total": 77.0,
+        "max_queue_total": 11,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 16.49438202247191,
+        "total_delay": 1468.0,
+        "passed_total": 89.0,
+        "max_queue_total": 14,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 10.831168831168831,
+        "total_delay": 834.0,
+        "passed_total": 77.0,
+        "max_queue_total": 11,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 16.49438202247191,
+        "total_delay": 1468.0,
+        "passed_total": 89.0,
+        "max_queue_total": 14,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 10.831168831168831,
+        "total_delay": 834.0,
+        "passed_total": 77.0,
+        "max_queue_total": 11,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 16.49438202247191,
+        "total_delay": 1468.0,
+        "passed_total": 89.0,
+        "max_queue_total": 14,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 10.831168831168831,
+        "total_delay": 834.0,
+        "passed_total": 77.0,
+        "max_queue_total": 11,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 16.49438202247191,
+        "total_delay": 1468.0,
+        "passed_total": 89.0,
+        "max_queue_total": 14,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 10.831168831168831,
+        "total_delay": 834.0,
+        "passed_total": 77.0,
+        "max_queue_total": 11,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 16.49438202247191,
+        "total_delay": 1468.0,
+        "passed_total": 89.0,
+        "max_queue_total": 14,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 10.831168831168831,
+        "total_delay": 834.0,
+        "passed_total": 77.0,
+        "max_queue_total": 11,
+        "switch_count": 15
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 20,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 15.155555555555555,
+        "total_delay": 1364.0,
+        "passed_total": 90.0,
+        "max_queue_total": 14,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 9.346153846153847,
+        "total_delay": 729.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 15.155555555555555,
+        "total_delay": 1364.0,
+        "passed_total": 90.0,
+        "max_queue_total": 14,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 9.346153846153847,
+        "total_delay": 729.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 15.155555555555555,
+        "total_delay": 1364.0,
+        "passed_total": 90.0,
+        "max_queue_total": 14,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 9.346153846153847,
+        "total_delay": 729.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 15.155555555555555,
+        "total_delay": 1364.0,
+        "passed_total": 90.0,
+        "max_queue_total": 14,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 9.346153846153847,
+        "total_delay": 729.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 15.155555555555555,
+        "total_delay": 1364.0,
+        "passed_total": 90.0,
+        "max_queue_total": 14,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 9.346153846153847,
+        "total_delay": 729.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 15.155555555555555,
+        "total_delay": 1364.0,
+        "passed_total": 90.0,
+        "max_queue_total": 14,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 9.346153846153847,
+        "total_delay": 729.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 25,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 14.087912087912088,
+        "total_delay": 1282.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.14102564102564,
+        "total_delay": 635.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 14.087912087912088,
+        "total_delay": 1282.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.14102564102564,
+        "total_delay": 635.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 14.087912087912088,
+        "total_delay": 1282.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.14102564102564,
+        "total_delay": 635.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 14.087912087912088,
+        "total_delay": 1282.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.14102564102564,
+        "total_delay": 635.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 14.087912087912088,
+        "total_delay": 1282.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.14102564102564,
+        "total_delay": 635.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 14.087912087912088,
+        "total_delay": 1282.0,
+        "passed_total": 91.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.14102564102564,
+        "total_delay": 635.0,
+        "passed_total": 78.0,
+        "max_queue_total": 9,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 30,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 40,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 50,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 25
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 30
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 40
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 45
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 50
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "balanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 8.852272727272727,
+        "total_delay": 779.0,
+        "passed_total": 88.0,
+        "max_queue_total": 10,
+        "switch_count": 16
+      }
+    },
+    {
+      "scenario": "imbalanced",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 13.0,
+        "total_delay": 1196.0,
+        "passed_total": 92.0,
+        "max_queue_total": 12,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "tidal",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 9.302631578947368,
+        "total_delay": 707.0,
+        "passed_total": 76.0,
+        "max_queue_total": 8,
+        "switch_count": 14
+      }
+    },
+    {
+      "scenario": "burst",
+      "params": {
+        "min_green": 15,
+        "max_green": 60,
+        "max_red": 60
+      },
+      "metrics": {
+        "avg_delay": 6.859649122807017,
+        "total_delay": 391.0,
+        "passed_total": 57.0,
+        "max_queue_total": 5,
+        "switch_count": 16
+      }
+    }
+  ]
+}

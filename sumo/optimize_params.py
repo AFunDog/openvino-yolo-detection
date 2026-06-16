@@ -24,15 +24,46 @@ from sumo.sumo_sim import run_simulation, SimulationMetrics
 
 # 参数搜索空间
 PARAM_GRID = {
-    "min_green": [5.0, 10.0, 15.0],
-    "max_green": [20.0, 30.0, 40.0, 50.0],
-    "max_red": [30.0, 45.0, 60.0],
+    "min_green": [5, 10, 15],
+    "max_green": [20, 25, 30, 40, 50, 60],
+    "max_red": [25, 30, 40, 45, 50, 60],
 }
+
+
+def _iter_combos() -> list:
+    """生成所有有效参数组合"""
+    combos = []
+    for min_green in PARAM_GRID["min_green"]:
+        for max_green in PARAM_GRID["max_green"]:
+            for max_red in PARAM_GRID["max_red"]:
+                if min_green >= max_green:
+                    continue
+                combos.append({
+                    "min_green": min_green,
+                    "max_green": max_green,
+                    "max_red": max_red,
+                })
+    return combos
+
+
+def _save_checkpoint(filepath: str, best_params: Dict, scenarios: List[str],
+                     duration: float, results: List[Dict]) -> None:
+    """增量保存优化进度"""
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump({
+            "best_params_so_far": best_params,
+            "param_grid": PARAM_GRID,
+            "scenarios": scenarios,
+            "duration": duration,
+            "total_results": len(results),
+            "all_results": results,
+        }, f, ensure_ascii=False, indent=2)
 
 
 def grid_search(
     scenarios: List[str],
     duration: float = 1800.0,
+    output_file: str = None,
     verbose: bool = True,
 ) -> Tuple[Dict, List[Dict]]:
     """
@@ -41,6 +72,7 @@ def grid_search(
     Args:
         scenarios: 要测试的交通场景列表
         duration: 每个场景的仿真时长
+        output_file: 增量保存结果的文件路径
         verbose: 是否打印进度
 
     Returns:
@@ -50,18 +82,7 @@ def grid_search(
     best_avg_delay = float('inf')
     best_params = None
 
-    # 生成所有参数组合
-    param_combos = []
-    for min_green in PARAM_GRID["min_green"]:
-        for max_green in PARAM_GRID["max_green"]:
-            for max_red in PARAM_GRID["max_red"]:
-                if min_green >= max_green:
-                    continue  # 跳过无效组合
-                param_combos.append({
-                    "min_green": min_green,
-                    "max_green": max_green,
-                    "max_red": max_red,
-                })
+    param_combos = _iter_combos()
 
     total = len(param_combos) * len(scenarios)
     current = 0
@@ -91,8 +112,8 @@ def grid_search(
                     "metrics": {
                         "avg_delay": metrics.avg_delay,
                         "total_delay": metrics.total_delay,
-                        "passed_total": metrics.passed_total,
-                        "max_queue_total": metrics.max_queue_total,
+                        "passed_total": metrics.arrived,
+                        "max_queue_total": metrics.max_queue,
                         "switch_count": metrics.switch_count,
                     }
                 })
@@ -108,7 +129,10 @@ def grid_search(
             best_avg_delay = avg_delay
             best_params = params.copy()
             if verbose:
-                print(f"  -> 新最优: avg_delay={avg_delay:.2f}")
+                print(f"  -> 新最优: avg_delay={avg_delay:.2f}s, params={best_params}")
+
+        if output_file:
+            _save_checkpoint(output_file, best_params, scenarios, duration, results)
 
     return best_params, results
 
@@ -138,9 +162,15 @@ def optimize(
     print(f"场景: {scenarios}")
     print(f"仿真时长: {duration}s")
     print(f"参数空间: {PARAM_GRID}")
+
+    total_combos = sum(1 for _ in _iter_combos())
+    total_runs = total_combos * len(scenarios)
+    print(f"有效参数组合: {total_combos} (共需 {total_runs} 次仿真)")
+    est_minutes = total_runs * duration / 60 * 0.5
+    print(f"预估耗时: ~{est_minutes:.0f} 分钟 ({est_minutes/60:.1f} 小时)")
     print("=" * 60)
 
-    best_params, all_results = grid_search(scenarios, duration)
+    best_params, all_results = grid_search(scenarios, duration, output_file=output_file)
 
     print("\n" + "=" * 60)
     print("优化结果")
@@ -181,7 +211,7 @@ if __name__ == "__main__":
     parser.add_argument("--scenarios", nargs="+",
                         default=["balanced", "imbalanced", "tidal", "burst"],
                         help="交通场景列表")
-    parser.add_argument("--duration", type=float, default=600.0,
+    parser.add_argument("--duration", type=float, default=300.0,
                         help="仿真时长 (秒)")
     parser.add_argument("--output", default="sumo/optimization_results.json",
                         help="结果输出文件")
