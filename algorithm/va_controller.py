@@ -85,10 +85,7 @@ class VAController:
             return x_state, y_state, max(0, remaining)
 
         self._phase_elapsed += dt
-        if self._phase == 0:
-            self._red_elapsed = 0.0   # X 绿灯，Y 红灯计时从零开始
-        else:
-            self._red_elapsed += dt   # Y 绿灯，X 红灯累计
+        self._red_elapsed += dt  # 无论哪个相位，红灯方向都在等待
 
         should_switch, reason = self._decide()
 
