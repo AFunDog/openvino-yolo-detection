@@ -203,6 +203,7 @@ class DetectControllerMixin:
                             "height": h,
                             "frame_count": 0,
                             "fps_list": [],
+                            "last_fps_time": None,
                             "total_detections": 0,
                             "tracker": yolo.SimpleTracker(iou_threshold=0.2, max_lost=45),
                             "direction_filter": yolo.TrajectoryDirectionFilter(),
@@ -249,7 +250,6 @@ class DetectControllerMixin:
                                 continue
                             s["next_due"] += 1.0 / max(s["fps"], 1.0)
                             fno = s["frame_count"]
-                            t0 = time.time()
                             boxes, confs, clss = [], [], []
                             draw_boxes, draw_confs, draw_clss, draw_tids, draw_statuses = [], [], [], [], []
                             if fno % skip == 0:
@@ -333,7 +333,14 @@ class DetectControllerMixin:
                                 fr["track_count_filtered"],
                                 fr.get("track_count_slow", 0),
                             )
-                            fps_now = 1.0 / max(time.time() - t0, 1e-6)
+                            now_fps = time.perf_counter()
+                            if s["last_fps_time"] is None:
+                                fps_now = s["fps"]
+                            else:
+                                frame_interval = now_fps - s["last_fps_time"]
+                                fps_now = 1.0 / frame_interval if frame_interval > 1e-3 else s["fps"]
+                            s["last_fps_time"] = now_fps
+                            fps_now = min(fps_now, s["fps"] * 2.0)
                             s["fps_list"].append(fps_now)
                             s["fps_list"] = s["fps_list"][-30:]
                             avg = sum(s["fps_list"]) / len(s["fps_list"])
